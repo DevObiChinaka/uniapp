@@ -1,0 +1,62 @@
+name: uniapp
+description: "A new Flutter project."
+publish_to: "none" # Remove this line if publishing to pub.dev
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Core Flutter & UI
+  cupertino_icons: ^1.0.8
+  provider: ^6.0.5
+  intl: ^0.18.1
+  syncfusion_flutter_charts: ^23.1.40
+  path_provider: ^2.1.1
+
+  # Network & HTTP
+  http: ^1.4.0
+  dio: ^5.4.0
+
+  # Storage & Security
+  shared_preferences: ^2.2.2
+  flutter_secure_storage: ^8.0.0
+
+  # Permissions & Auth
+  permission_handler: ^11.3.0
+  local_auth: ^2.1.6
+
+  # Firebase
+  firebase_core: ^2.24.0
+  firebase_messaging: ^14.7.0
+
+  # QR & Scanner
+  qr_flutter: ^4.0.0
+  mobile_scanner: ^3.3.0
+
+  # Bluetooth
+  flutter_reactive_ble: ^5.0.2
+
+  # Camera & Image
+  camera: ^0.10.6
+  image: ^4.0.17
+
+  # Biometric & Face Detection
+  google_mlkit_face_detection: ^0.11.0
+
+  # Security & Hashing
+  crypto: ^3.0.3
+  flutter_svg: ^2.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  # assets:
+  #   - assets/
