@@ -143,17 +143,33 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
           if (data['university_id'] != null)
             await prefs.setString('university_id', data['university_id']);
           if (!mounted) return;
-          Navigator.pushReplacementNamed(
-            context,
-            '/home_screen',
-            arguments: {
-              'firstName': data['first_name'] ?? '',
-              'lastName': data['last_name'] ?? '',
-              'universityId': data['university_id'] ?? '',
-              'token': token,
-              'role': data['role'] ?? '',
-            },
-          );
+          
+          final role = data['role'] ?? '';
+          final args = {
+            'firstName': data['first_name'] ?? '',
+            'lastName': data['last_name'] ?? '',
+            'universityId': data['university_id'] ?? '',
+            'token': token,
+            'role': role,
+          };
+          
+          // Navigate based on role
+          switch (role) {
+            case AppConstants.studentRole:
+              Navigator.pushReplacementNamed(context, AppRoutes.studentDashboard, arguments: args);
+              break;
+            case AppConstants.lecturerRole:
+              Navigator.pushReplacementNamed(context, AppRoutes.lecturerDashboard, arguments: args);
+              break;
+            case AppConstants.securityRole:
+              Navigator.pushReplacementNamed(context, AppRoutes.securityDashboard, arguments: args);
+              break;
+            case AppConstants.adminRole:
+              Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard, arguments: args);
+              break;
+            default:
+              Navigator.pushReplacementNamed(context, AppRoutes.login);
+          }
         }
       } else {
         _showSnackBar('Session expired. Please log in again.');

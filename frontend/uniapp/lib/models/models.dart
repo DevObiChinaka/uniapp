@@ -415,3 +415,133 @@ class SystemLog {
 
   String get timeAgo => Utils.timeAgo(timestamp);
 }
+
+@immutable
+class OfflineAttendanceRecord {
+  final String id;
+  final String userId;
+  final String sessionId;
+  final DateTime timestamp;
+  final String method;
+  final String? program;
+  final bool isSynced;
+  final DateTime createdAt;
+  final Map<String, dynamic> extraData;
+
+  const OfflineAttendanceRecord({
+    required this.id,
+    required this.userId,
+    required this.sessionId,
+    required this.timestamp,
+    required this.method,
+    this.program,
+    this.isSynced = false,
+    required this.createdAt,
+    this.extraData = const {},
+  });
+
+  factory OfflineAttendanceRecord.fromJson(Map<String, dynamic> json) {
+    return OfflineAttendanceRecord(
+      id: json['id'] as String,
+      userId: json['user_id'] as String,
+      sessionId: json['session_id'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      method: json['method'] as String,
+      program: json['program'] as String?,
+      isSynced: json['is_synced'] as bool? ?? false,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      extraData: json['extra_data'] != null
+          ? Map<String, dynamic>.from(json['extra_data'] as Map)
+          : const {},
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'session_id': sessionId,
+      'timestamp': timestamp.toIso8601String(),
+      'method': method,
+      'program': program,
+      'is_synced': isSynced,
+      'created_at': createdAt.toIso8601String(),
+      'extra_data': extraData,
+    };
+  }
+
+  OfflineAttendanceRecord copyWith({
+    String? id,
+    String? userId,
+    String? sessionId,
+    DateTime? timestamp,
+    String? method,
+    String? program,
+    bool? isSynced,
+    DateTime? createdAt,
+    Map<String, dynamic>? extraData,
+  }) {
+    return OfflineAttendanceRecord(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      sessionId: sessionId ?? this.sessionId,
+      timestamp: timestamp ?? this.timestamp,
+      method: method ?? this.method,
+      program: program ?? this.program,
+      isSynced: isSynced ?? this.isSynced,
+      createdAt: createdAt ?? this.createdAt,
+      extraData: extraData ?? this.extraData,
+    );
+  }
+
+  // Convert to regular AttendanceRecord
+  AttendanceRecord toAttendanceRecord() {
+    return AttendanceRecord(
+      id: id,
+      userId: userId,
+      sessionId: sessionId,
+      timestamp: timestamp,
+      method: method,
+      program: program,
+    );
+  }
+}
+
+@immutable
+class SyncStatus {
+  final DateTime lastSyncAttempt;
+  final bool isCurrentlySyncing;
+  final int pendingRecords;
+  final String? lastError;
+
+  const SyncStatus({
+    required this.lastSyncAttempt,
+    this.isCurrentlySyncing = false,
+    this.pendingRecords = 0,
+    this.lastError,
+  });
+
+  factory SyncStatus.initial() {
+    return SyncStatus(
+      lastSyncAttempt: DateTime.now().subtract(Duration(days: 1)),
+      isCurrentlySyncing: false,
+      pendingRecords: 0,
+    );
+  }
+
+  SyncStatus copyWith({
+    DateTime? lastSyncAttempt,
+    bool? isCurrentlySyncing,
+    int? pendingRecords,
+    String? lastError,
+  }) {
+    return SyncStatus(
+      lastSyncAttempt: lastSyncAttempt ?? this.lastSyncAttempt,
+      isCurrentlySyncing: isCurrentlySyncing ?? this.isCurrentlySyncing,
+      pendingRecords: pendingRecords ?? this.pendingRecords,
+      lastError: lastError ?? this.lastError,
+    );
+  }
+}

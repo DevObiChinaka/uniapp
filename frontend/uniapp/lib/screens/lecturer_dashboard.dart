@@ -4,6 +4,9 @@ import 'package:uniapp/screens/app_constants.dart';
 import 'package:uniapp/screens/app_provider.dart';
 import 'package:uniapp/models/models.dart';
 import 'package:uniapp/utils/utils.dart';
+import 'dart:convert';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:uniapp/screens/attendance_management_screen.dart';
 
 class LecturerDashboard extends StatefulWidget {
   final String firstName;
@@ -32,12 +35,33 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
   @override
   Widget build(BuildContext context) {
     final appProvider = Provider.of<AppProvider>(context);
+    final activeSession = appProvider.activeSession;
+    final isSessionActive = activeSession != null;
+    final isBroadcasting = appProvider.isBleBroadcasting;
 
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: Text('Lecturer Dashboard'),
+          actions: [
+            // Add BLE status indicator
+            if (isSessionActive && isBroadcasting)
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Tooltip(
+                  message: 'BLE beacon is active',
+                  child: Icon(
+                    Icons.bluetooth_searching,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+            IconButton(
+              icon: Icon(Icons.account_circle),
+              onPressed: () => _showProfileMenu(context),
+            ),
+          ],
           bottom: TabBar(
             tabs: [
               Tab(text: 'Sessions'),
@@ -118,6 +142,20 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                   label: Text('Live'),
                   backgroundColor: Colors.green,
                   labelStyle: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ElevatedButton.icon(
+                  icon: Icon(Icons.qr_code),
+                  label: Text('Generate QR Code'),
+                  onPressed: () => _showAttendanceQRCode(session),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -297,10 +335,24 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                 'Attendance: ${attendanceRecords.length} students',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              Chip(
-                label: Text('Live'),
-                backgroundColor: Colors.green,
-                labelStyle: TextStyle(color: Colors.white),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.edit),
+                    label: Text('Manage'),
+                    onPressed: () => _manageAttendance(session),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Chip(
+                    label: Text('Live'),
+                    backgroundColor: Colors.green,
+                    labelStyle: TextStyle(color: Colors.white),
+                  ),
+                ],
               ),
             ],
           ),
@@ -416,10 +468,81 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
         totalSessions: _totalSessions,
         passThreshold: _passThreshold,
       );
-      await appProvider.createSession(session);
+      final success = await appProvider.createSession(session);
+      
+      // Start BLE beacon automatically when session is created
+      if (success) {
+        await appProvider.startBleAttendanceBeacon(session.id);
+      }
+      
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Session started successfully')));
+    }
+  }
+
+  void _showAttendanceQRCode(Session session) {
+    // Create QR code data with session information and timestamp
+    final qrData = jsonEncode({
+      'session_id': session.id,
+      'lecturer_id': session.lecturerId,
+      'program': session.program,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Attendance QR Code'),
+        content: Container(
+          width: 250,
+          height: 250,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: QrImageView(
+                  data: qrData,
+                  version: QrVersions.auto,
+                  size: 220,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Valid for 5 minutes',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _manageAttendance(Session session) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AttendanceManagementScreen(
+          sessionId: session.id,
+          program: session.program,
+        ),
+      ),
+    );
+    
+    if (result == true) {
+      // Refresh attendance data
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      await appProvider.fetchAttendanceRecords(session.id);
+      setState(() {}); // Refresh UI
     }
   }
 }

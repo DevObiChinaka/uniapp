@@ -1,5 +1,6 @@
 // student_dashboard.dart
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -8,11 +9,13 @@ import 'package:uniapp/screens/profile_screen.dart';
 import 'package:camera/camera.dart'; // Ensure camera is in pubspec.yaml
 import 'package:uniapp/screens/app_constants.dart';
 import 'package:uniapp/screens/app_provider.dart';
+import 'package:uniapp/screens/emergency_exit_screen.dart';
 import 'package:uniapp/models/models.dart';
 import 'package:uniapp/utils/utils.dart';
 import 'package:uniapp/widgets/widgets.dart';
 import 'package:uniapp/services/session_service.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:convert';
 
 class StudentDashboard extends StatefulWidget {
   final String firstName;
@@ -338,12 +341,8 @@ class _StudentDashboardState extends State<StudentDashboard>
                   isLoading
                       ? null
                       : () async {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('QR scan not yet implemented.'),
-                          ),
-                        );
-                      },
+                          _startQRAttendanceScanner(appProvider);
+                        },
             ),
             SizedBox(height: 16),
           ] else ...[
@@ -607,6 +606,17 @@ class _StudentDashboardState extends State<StudentDashboard>
             ),
           ),
           SizedBox(height: 16),
+          ElevatedButton.icon(
+            icon: Icon(Icons.warning_amber, color: Colors.white),
+            label: Text('Request Emergency Exit'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () => _requestEmergencyExit(appProvider),
+          ),
+          SizedBox(height: 16),
           if (exitResult != null)
             Card(
               color: exitResult.allowed ? Colors.green[50] : Colors.red[50],
@@ -700,5 +710,118 @@ class _StudentDashboardState extends State<StudentDashboard>
         ],
       ),
     );
+  }
+
+  void _startQRAttendanceScanner(AppProvider appProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('QR Attendance Scanner'),
+        contentPadding: EdgeInsets.zero,
+        content: Container(
+          height: 300,
+          width: 300,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              MobileScanner(
+                controller: _qrController ??= MobileScannerController(),
+                onDetect: (capture) async {
+                  final barcodes = capture.barcodes;
+                  if (barcodes.isNotEmpty) {
+                    final barcode = barcodes.first;
+                    if (barcode.rawValue != null) {
+                      // Close the dialog first
+                      Navigator.pop(context);
+                      
+                      // Process the QR code for attendance
+                      await _processQRAttendance(barcode.rawValue!, appProvider);
+                    }
+                  }
+                },
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blue, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                width: 200,
+                height: 200,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _processQRAttendance(String qrData, AppProvider appProvider) async {
+    try {
+      // Parse the QR data to get session information
+      Map<String, dynamic> sessionData = {};
+      try {
+        sessionData = Map<String, dynamic>.from(jsonDecode(qrData));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid QR code format')),
+        );
+        return;
+      }
+
+      // Validate QR data contains required session info
+      if (!sessionData.containsKey('session_id') || 
+          !sessionData.containsKey('lecturer_id') || 
+          !sessionData.containsKey('timestamp')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid attendance QR code')),
+        );
+        return;
+      }
+
+      // Verify session is still active
+      final timestamp = DateTime.fromMillisecondsSinceEpoch(sessionData['timestamp']);
+      final now = DateTime.now();
+      if (now.difference(timestamp).inMinutes > 5) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('QR code has expired (valid for 5 minutes)')),
+        );
+        return;
+      }
+
+      // Mark attendance using QR method
+      await appProvider.markQRAttendance(
+        sessionData['session_id'], 
+        sessionData['lecturer_id'],
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Attendance marked successfully via QR')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error marking attendance: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _requestEmergencyExit(AppProvider appProvider) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => EmergencyExitScreen(),
+      ),
+    );
+
+    if (result == true) {
+      // Request was successful, refresh state
+      setState(() {});
+    }
   }
 }

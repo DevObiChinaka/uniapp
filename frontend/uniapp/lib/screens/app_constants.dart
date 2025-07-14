@@ -21,7 +21,7 @@ class AppConstants {
   // API Configuration
   static const String baseUrl = 'http://172.20.10.11:8000/api';
   static const String faceApiEndpoint =
-      'https://{region}.api.cognitive.microsoft.com/face/v1.0';
+      'https://facin-api-test.cognitiveservices.azure.com/';
 
   // API Endpoints
   static const String attendanceEndpoint = '$baseUrl/attendance/';
@@ -70,6 +70,17 @@ class AppConstants {
   // Face verification threshold
   static const double faceConfidenceThreshold = 0.7;
 
-  // Face API Key
-  static const String faceApiKey = 'YOUR_AZURE_FACE_API_KEY';
+  // Face API Keys
+  static const String faceApiKey1 = 'FFveXtbSQaaGJWRS5Mxj93MF02EQromA5BC77OjHCdbHMxgawg0OJQQJ99BGACYeBjFXJ3w3AAAKACOGqsqC';
+  static const String faceApiKey2 = '5DcKp6aLK3sAp4wsBPcqEgFrfP3dxecrYiNB5Gzrr12vBlWwunfMJQQJ99BGACYeBjFXJ3w3AAAKACOGjSzE';
+  static const String faceApiRegion = 'eastus';
+
+  // Offline Support
+  static const String offlineAttendanceKey = 'offline_attendance';
+  static const int offlineSyncInterval = 5; // minutes
+  static const int maxOfflineRecords = 50;
+  
+  // Data Synchronization
+  static const bool enableAutoSync = true;
+  static const int syncRetryAttempts = 3;
 }

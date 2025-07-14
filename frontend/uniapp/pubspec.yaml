@@ -20,10 +20,13 @@ dependencies:
   # Network & HTTP
   http: ^1.4.0
   dio: ^5.4.0
+  connectivity_plus: ^5.0.1
 
   # Storage & Security
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^8.0.0
+  crypto: ^3.0.3
+  uuid: ^4.2.1
 
   # Permissions & Auth
   permission_handler: ^11.3.0
@@ -39,6 +42,7 @@ dependencies:
 
   # Bluetooth
   flutter_reactive_ble: ^5.0.2
+  flutter_blue_plus: ^1.15.9
 
   # Camera & Image
   camera: ^0.10.6
@@ -48,7 +52,6 @@ dependencies:
   google_mlkit_face_detection: ^0.11.0
 
   # Security & Hashing
-  crypto: ^3.0.3
   flutter_svg: ^2.0.7
 
 dev_dependencies:

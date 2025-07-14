@@ -45,5 +45,19 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- BLE Permissions -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app uses Bluetooth to connect with nearby attendance beacons</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app uses Bluetooth to broadcast attendance beacons</string>
+	
+	<!-- Camera Permissions -->
+	<key>NSCameraUsageDescription</key>
+	<string>This app uses camera for face verification and QR code scanning</string>
+	
+	<!-- Location Permissions (required for BLE scanning on iOS) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location access for detecting nearby attendance beacons</string>
 </dict>
 </plist>

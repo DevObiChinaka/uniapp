@@ -18,6 +18,9 @@ import 'package:uniapp/services/face_service.dart';
 import 'package:uniapp/screens/student_dashboard.dart';
 import 'package:uniapp/screens/lecturer_dashboard.dart';
 import 'package:uniapp/screens/security_dashboard.dart';
+
+// Global key for navigator to show snackbars from non-widget contexts
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 import 'package:uniapp/screens/admin_dashboard.dart';
 
 void main() async {
@@ -95,6 +98,7 @@ class UniApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppLifecycleHandler(
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'Smart Attendance & Leave Management',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(

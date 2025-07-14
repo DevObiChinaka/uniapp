@@ -111,13 +111,14 @@ class FaceService {
 
   Future<List<DetectedFace>> _detectFaces(Uint8List imageBytes) async {
     try {
-      final url = AppConstants.faceApiEndpoint + '/detect';
+      // Using the full endpoint with the face/v1.0 path
+      final url = '${AppConstants.faceApiEndpoint}face/v1.0/detect';
       final response = await _dio.post(
         url,
         data: Stream.fromIterable(imageBytes.map((b) => [b])),
         options: Options(
           headers: {
-            'Ocp-Apim-Subscription-Key': AppConstants.faceApiKey,
+            'Ocp-Apim-Subscription-Key': AppConstants.faceApiKey1,
             'Content-Type': 'application/octet-stream',
           },
         ),
@@ -125,6 +126,8 @@ class FaceService {
           'returnFaceId': 'true',
           'returnFaceLandmarks': 'false',
           'returnFaceAttributes': AppConstants.faceDetectionAttributes,
+          'recognitionModel': 'recognition_04',
+          'detectionModel': 'detection_03',
         },
       );
       final data = response.data as List;
@@ -139,14 +142,18 @@ class FaceService {
     String faceId1,
     String faceId2,
   ) async {
-    final url = AppConstants.faceApiEndpoint + '/verify';
+    final url = '${AppConstants.faceApiEndpoint}face/v1.0/verify';
     try {
       final response = await _dio.post(
         url,
-        data: {'faceId1': faceId1, 'faceId2': faceId2},
+        data: {
+          'faceId1': faceId1, 
+          'faceId2': faceId2,
+          'recognitionModel': 'recognition_04'
+        },
         options: Options(
           headers: {
-            'Ocp-Apim-Subscription-Key': AppConstants.faceApiKey,
+            'Ocp-Apim-Subscription-Key': AppConstants.faceApiKey1,
             'Content-Type': 'application/json',
           },
         ),

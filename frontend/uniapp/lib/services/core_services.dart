@@ -9,6 +9,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/app_constants.dart';
 import '../models/models.dart';
 
@@ -359,6 +360,56 @@ class CoreServices {
     }
   }
 
+  Future<List<AttendanceRecord>> getSessionAttendance(String sessionId) async {
+    try {
+      final response = await _dio.get(
+        AppConstants.attendanceEndpoint,
+        queryParameters: {'session_id': sessionId},
+      );
+      return (response.data as List)
+          .map((json) => AttendanceRecord.fromJson(json))
+          .toList();
+    } on DioException catch (e) {
+      _handleApiError(e, 'Get session attendance');
+      return [];
+    }
+  }
+
+  // Manual Attendance Methods
+  Future<bool> markManualAttendance({
+    required List<String> studentIds,
+    required String sessionId,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '${AppConstants.attendanceEndpoint}/manual',
+        data: {
+          'student_ids': studentIds,
+          'session_id': sessionId,
+          'method': 'manual',
+        },
+      );
+
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      _handleApiError(e, 'Manual attendance marking');
+      return false;
+    }
+  }
+
+  Future<bool> removeAttendanceRecord(String recordId) async {
+    try {
+      final response = await _dio.delete(
+        '${AppConstants.attendanceEndpoint}/$recordId',
+      );
+
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      _handleApiError(e, 'Remove attendance');
+      return false;
+    }
+  }
+
   // Utility Methods
   void _handleApiError(DioException e, String operation) {
     debugPrint('$operation error: ${e.message}');
@@ -376,13 +427,77 @@ class CoreServices {
   }
 
   Future<String?> _getAuthToken() async {
-    // Implement token retrieval from secure storage
-    return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      
+      // Check if token exists and is not expired
+      if (token != null) {
+        // Check if token is expired
+        final tokenData = parseJwt(token);
+        final expiryTimestamp = tokenData['exp'] as int?;
+        
+        if (expiryTimestamp != null) {
+          final expiry = DateTime.fromMillisecondsSinceEpoch(expiryTimestamp * 1000);
+          if (DateTime.now().isBefore(expiry)) {
+            return token;
+          }
+        }
+        
+        // Token is expired, try to refresh it
+        return await _refreshToken();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error retrieving token: $e');
+      return null;
+    }
   }
 
   Future<String?> _refreshToken() async {
-    // Implement token refresh logic
-    return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final refreshToken = prefs.getString('refresh_token');
+      
+      if (refreshToken == null) {
+        return null;
+      }
+      
+      final response = await _dio.post(
+        '${AppConstants.baseUrl}/token/refresh/',
+        data: {
+          'refresh': refreshToken,
+        },
+      );
+      
+      if (response.statusCode == 200 && response.data['access'] != null) {
+        final newToken = response.data['access'] as String;
+        await prefs.setString('auth_token', newToken);
+        return newToken;
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Token refresh error: $e');
+      return null;
+    }
+  }
+  
+  Map<String, dynamic> parseJwt(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) {
+      return {};
+    }
+    
+    final payload = parts[1];
+    var normalized = base64Url.normalize(payload);
+    var resp = utf8.decode(base64Url.decode(normalized));
+    final payloadMap = jsonDecode(resp);
+    if (payloadMap is Map<String, dynamic>) {
+      return payloadMap;
+    }
+    
+    return {};
   }
 
   void dispose() {
@@ -453,6 +568,64 @@ class CoreServices {
     } on DioException catch (e) {
       _handleApiError(e, 'Update leave status');
       return false;
+    }
+  }
+
+  Future<bool> markQRAttendance({
+    required String userId,
+    required String sessionId,
+    required bool faceVerified,
+  }) async {
+    try {
+      final response = await _dio.post(
+        AppConstants.attendanceEndpoint,
+        data: {
+          'user_id': userId,
+          'session_id': sessionId,
+          'face_verified': faceVerified,
+          'method': 'qr',
+        },
+      );
+
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      _handleApiError(e, 'QR Attendance marking');
+      return false;
+    }
+  }
+
+  Future<ExitResult> requestEmergencyExit({
+    required String userId,
+    required String reason,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '${AppConstants.exitEndpoint}/emergency',
+        data: {
+          'user_id': userId,
+          'reason': reason,
+          'emergency': true,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return ExitResult(
+          allowed: response.data['allowed'] as bool,
+          message: response.data['message'] as String,
+          studentName: response.data['student_name'] as String?,
+        );
+      } else {
+        return ExitResult(
+          allowed: false,
+          message: 'Server error: ${response.statusCode}',
+        );
+      }
+    } on DioException catch (e) {
+      final errorMsg = _getErrorMessage(e, 'Emergency exit');
+      return ExitResult(
+        allowed: false,
+        message: errorMsg,
+      );
     }
   }
 }
