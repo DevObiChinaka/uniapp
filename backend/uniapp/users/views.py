@@ -308,6 +308,7 @@ class RegisterUserView(APIView):
         print('Incoming registration data:', request.data)  # <-- LOGGING
         data = request.data.copy()
         role = data.get('role')
+        
         # Clean up fields based on role
         if role == 'student':
             # university_id required, username should be set to university_id
@@ -315,12 +316,24 @@ class RegisterUserView(APIView):
                 print('Error: university_id is required for students.')  # <-- LOGGING
                 return Response({'detail': 'university_id is required for students.'}, status=status.HTTP_400_BAD_REQUEST)
             data['username'] = data['university_id']  # <-- Set username to university_id
+        elif role == 'admin':
+            # Admin users: username required, university_id should be None
+            data['university_id'] = None
+            if not data.get('username'):
+                print('Error: username is required for admin role.')  # <-- LOGGING
+                return Response({'detail': 'username is required for admin role.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Ensure campus_tag and program are properly handled for admin
+            if 'campus_tag' not in data or data['campus_tag'] is None:
+                data['campus_tag'] = 'on-campus'  # Set default for admin
+            if 'program' not in data or data['program'] is None:
+                data['program'] = None  # Explicitly allow None for admin
         else:
-            # username required, university_id should be None or blank
-            data['university_id'] = ''
+            # Other roles (lecturer, security): username required, university_id should be None
+            data['university_id'] = None
             if not data.get('username'):
                 print('Error: username is required for this role.')  # <-- LOGGING
                 return Response({'detail': 'username is required for this role.'}, status=status.HTTP_400_BAD_REQUEST)
+                
         serializer = UserRegistrationSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
@@ -499,4 +512,94 @@ class ExitReportView(APIView):
         else:
             records = ExitLog.objects.filter(user=user)
         serializer = ExitLogSerializer(records, many=True)
+        return Response(serializer.data)
+
+# ====================== Admin ViewSets ======================
+class AdminStudentViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request):
+        # Only allow admin users
+        if request.user.role != 'admin':
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        students = User.objects.filter(role='student')
+        serializer = UserSerializer(students, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['patch'])
+    def campus_tag(self, request, pk=None):
+        if request.user.role != 'admin':
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            student = User.objects.get(pk=pk, role='student')
+            campus_tag = request.data.get('campus_tag')
+            
+            if campus_tag not in ['on-campus', 'off-campus']:
+                return Response({'error': 'Invalid campus tag'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            student.campus_tag = campus_tag
+            student.save()
+            
+            SystemLog.objects.create(
+                log_type='system',
+                event='Campus tag updated',
+                user=request.user,
+                details=f'Student {student.university_id} tagged as {campus_tag}'
+            )
+            
+            return Response({'status': 'updated'})
+        except User.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class AdminLeaveViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request):
+        if request.user.role != 'admin':
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        leave_requests = LeaveRequest.objects.all()
+        serializer = LeaveRequestSerializer(leave_requests, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['patch'])
+    def status(self, request, pk=None):
+        if request.user.role != 'admin':
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            leave_request = LeaveRequest.objects.get(pk=pk)
+            new_status = request.data.get('status')
+            
+            if new_status not in ['approved', 'denied']:
+                return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            leave_request.status = new_status
+            leave_request.reviewer = request.user
+            leave_request.reviewed_at = timezone.now()
+            leave_request.review_comments = request.data.get('comments', '')
+            leave_request.save()
+            
+            SystemLog.objects.create(
+                log_type='system',
+                event=f'Leave request {new_status}',
+                user=request.user,
+                details=f'Leave request for {leave_request.user.university_id} {new_status}'
+            )
+            
+            return Response({'status': 'updated'})
+        except LeaveRequest.DoesNotExist:
+            return Response({'error': 'Leave request not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class AdminSystemLogViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request):
+        if request.user.role != 'admin':
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        logs = SystemLog.objects.all().order_by('-timestamp')
+        serializer = SystemLogSerializer(logs, many=True)
         return Response(serializer.data)

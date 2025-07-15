@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
+// import 'dart:math'; // Removed unused import
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +8,7 @@ import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+// import 'package:qr_flutter/qr_flutter.dart'; // Removed unused import
 import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/app_constants.dart';
 import '../models/models.dart';
@@ -221,11 +221,12 @@ class CoreServices {
       final response = await _dio.post(
         AppConstants.attendanceEndpoint,
         data: {
-          'user_id': userId,
-          'session_id': sessionId,
+          'user': userId,              // ✅ Fixed: user instead of user_id
+          'session': sessionId,        // ✅ Fixed: session instead of session_id
           'face_verified': faceVerified,
           'ble_device_id': bleDeviceId,
           'ble_rssi': bleRssi,
+          'method': 'ble',            // ✅ Added: method field
         },
       );
 
@@ -316,8 +317,12 @@ class CoreServices {
   }) async {
     try {
       final response = await _dio.post(
-        AppConstants.exitEndpoint,
-        data: {'user_id': userId, 'face_id': faceId, 'qr_data': qrData},
+        '${AppConstants.exitEndpoint}process/',  // ✅ Fixed: correct endpoint
+        data: {
+          'qr_data': qrData,         // ✅ OK: matches backend
+          'face_image': faceId,      // ✅ Fixed: face_image instead of face_id
+          // Note: user comes from authentication, no need to send user_id
+        },
       );
 
       return ExitResult.fromJson(response.data);
@@ -382,10 +387,10 @@ class CoreServices {
   }) async {
     try {
       final response = await _dio.post(
-        '${AppConstants.attendanceEndpoint}/manual',
+        '${AppConstants.attendanceEndpoint}manual/',  // ✅ Fixed: proper endpoint format
         data: {
           'student_ids': studentIds,
-          'session_id': sessionId,
+          'session': sessionId,          // ✅ Fixed: session instead of session_id
           'method': 'manual',
         },
       );
@@ -410,6 +415,82 @@ class CoreServices {
     }
   }
 
+  // Admin management methods
+  Future<List<User>> fetchAllStudents() async {
+    try {
+      final response = await _dio.get('/admin/students/');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data['data'];
+        return data.map((json) => User.fromJson(json)).toList();
+      }
+      throw Exception('Failed to fetch students');
+    } catch (e) {
+      debugPrint('Error fetching students: $e');
+      return [];
+    }
+  }
+
+  Future<List<LeaveRequest>> fetchAllLeaveRequests() async {
+    try {
+      final response = await _dio.get('/admin/leave-requests/');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data['data'];
+        return data.map((json) => LeaveRequest.fromJson(json)).toList();
+      }
+      throw Exception('Failed to fetch leave requests');
+    } catch (e) {
+      debugPrint('Error fetching leave requests: $e');
+      return [];
+    }
+  }
+
+  Future<List<SystemLog>> fetchSystemLogs() async {
+    try {
+      final response = await _dio.get('/admin/system-logs/');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data['data'];
+        return data.map((json) => SystemLog.fromJson(json)).toList();
+      }
+      throw Exception('Failed to fetch system logs');
+    } catch (e) {
+      debugPrint('Error fetching system logs: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateStudentCampusTag(String studentId, bool isOnCampus) async {
+    try {
+      final response = await _dio.put(
+        '/admin/students/$studentId/campus-tag/',
+        data: {'is_on_campus': isOnCampus},
+      );
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update campus tag');
+      }
+    } catch (e) {
+      debugPrint('Error updating campus tag: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateLeaveRequestStatus(
+    String leaveRequestId,
+    LeaveRequestStatus status,
+  ) async {
+    try {
+      final response = await _dio.put(
+        '/admin/leave-requests/$leaveRequestId/',
+        data: {'status': status.value},
+      );
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update leave request status');
+      }
+    } catch (e) {
+      debugPrint('Error updating leave request status: $e');
+      rethrow;
+    }
+  }
+
   // Utility Methods
   void _handleApiError(DioException e, String operation) {
     debugPrint('$operation error: ${e.message}');
@@ -429,21 +510,23 @@ class CoreServices {
   Future<String?> _getAuthToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      
+      final token = prefs.getString('token');
+
       // Check if token exists and is not expired
       if (token != null) {
         // Check if token is expired
         final tokenData = parseJwt(token);
         final expiryTimestamp = tokenData['exp'] as int?;
-        
+
         if (expiryTimestamp != null) {
-          final expiry = DateTime.fromMillisecondsSinceEpoch(expiryTimestamp * 1000);
+          final expiry = DateTime.fromMillisecondsSinceEpoch(
+            expiryTimestamp * 1000,
+          );
           if (DateTime.now().isBefore(expiry)) {
             return token;
           }
         }
-        
+
         // Token is expired, try to refresh it
         return await _refreshToken();
       }
@@ -457,38 +540,36 @@ class CoreServices {
   Future<String?> _refreshToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final refreshToken = prefs.getString('refresh_token');
-      
+      final refreshToken = prefs.getString('refresh');
+
       if (refreshToken == null) {
         return null;
       }
-      
+
       final response = await _dio.post(
-        '${AppConstants.baseUrl}/token/refresh/',
-        data: {
-          'refresh': refreshToken,
-        },
+        '/api/auth/token/refresh/',
+        data: {'refresh': refreshToken},
       );
-      
+
       if (response.statusCode == 200 && response.data['access'] != null) {
         final newToken = response.data['access'] as String;
-        await prefs.setString('auth_token', newToken);
+        await prefs.setString('token', newToken);
         return newToken;
       }
-      
+
       return null;
     } catch (e) {
       debugPrint('Token refresh error: $e');
       return null;
     }
   }
-  
+
   Map<String, dynamic> parseJwt(String token) {
     final parts = token.split('.');
     if (parts.length != 3) {
       return {};
     }
-    
+
     final payload = parts[1];
     var normalized = base64Url.normalize(payload);
     var resp = utf8.decode(base64Url.decode(normalized));
@@ -496,7 +577,7 @@ class CoreServices {
     if (payloadMap is Map<String, dynamic>) {
       return payloadMap;
     }
-    
+
     return {};
   }
 
@@ -580,8 +661,8 @@ class CoreServices {
       final response = await _dio.post(
         AppConstants.attendanceEndpoint,
         data: {
-          'user_id': userId,
-          'session_id': sessionId,
+          'user': userId,              // ✅ Fixed: user instead of user_id
+          'session': sessionId,        // ✅ Fixed: session instead of session_id
           'face_verified': faceVerified,
           'method': 'qr',
         },
@@ -599,12 +680,20 @@ class CoreServices {
     required String reason,
   }) async {
     try {
+      // Generate emergency QR data
+      final emergencyQrData = jsonEncode({
+        'type': 'EMERGENCY_EXIT',
+        'userId': userId,
+        'reason': reason,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+      
       final response = await _dio.post(
-        '${AppConstants.exitEndpoint}/emergency',
+        '${AppConstants.exitEndpoint}process/',  // ✅ Fixed: use existing endpoint
         data: {
-          'user_id': userId,
-          'reason': reason,
-          'emergency': true,
+          'qr_data': emergencyQrData,            // ✅ Fixed: proper QR data format
+          'face_image': 'emergency_bypass',      // ✅ Fixed: field name
+          // Note: Emergency flag embedded in QR data
         },
       );
 
@@ -622,10 +711,46 @@ class CoreServices {
       }
     } on DioException catch (e) {
       final errorMsg = _getErrorMessage(e, 'Emergency exit');
-      return ExitResult(
-        allowed: false,
-        message: errorMsg,
-      );
+      return ExitResult(allowed: false, message: errorMsg);
+    }
+  }
+
+  // Logout Method
+  Future<bool> logout() async {
+    try {
+      // Get the token
+      final token = await _getAuthToken();
+      if (token == null) {
+        // Already logged out
+        return true;
+      }
+
+      // Notify the server about logout
+      try {
+        await _dio.post('/auth/logout/', data: {'token': token});
+      } catch (e) {
+        // Even if server logout fails, continue with local logout
+        debugPrint('Server logout request error: $e');
+      }
+
+      // Remove FCM token registration
+      final fcmToken = await _fcm.getToken();
+      if (fcmToken != null) {
+        try {
+          await _dio.delete(
+            AppConstants.fcmEndpoint,
+            data: {'token': fcmToken},
+          );
+        } catch (e) {
+          // Ignore errors removing FCM token
+          debugPrint('FCM token removal error: $e');
+        }
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('Logout error: $e');
+      return false;
     }
   }
 }

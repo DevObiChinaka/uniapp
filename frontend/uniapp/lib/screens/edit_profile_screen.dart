@@ -5,7 +5,9 @@ import 'dart:convert';
 import 'package:uniapp/screens/app_constants.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  final String userId;
+
+  const EditProfileScreen({super.key, this.userId = ''});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();

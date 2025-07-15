@@ -87,7 +87,5 @@ class BluetoothService {
       debugPrint('Error turning on Bluetooth: $e');
       return false;
     }
-    
-    return false;
   }
 }

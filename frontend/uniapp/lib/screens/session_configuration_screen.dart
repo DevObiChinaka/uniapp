@@ -3,30 +3,32 @@ import 'package:provider/provider.dart';
 import 'package:uniapp/screens/app_provider.dart';
 import 'package:uniapp/screens/app_constants.dart';
 import 'package:uniapp/screens/qr_generation_screen.dart';
-import 'package:uniapp/models/models.dart';
+// import 'package:uniapp/models/models.dart'; // Removed unused import
 import 'package:intl/intl.dart';
 
 class SessionConfigurationScreen extends StatefulWidget {
   final String lecturerId;
   final String token;
-  
+
   const SessionConfigurationScreen({
-    Key? key, 
+    Key? key,
     required this.lecturerId,
     required this.token,
   }) : super(key: key);
 
   @override
-  State<SessionConfigurationScreen> createState() => _SessionConfigurationScreenState();
+  State<SessionConfigurationScreen> createState() =>
+      _SessionConfigurationScreenState();
 }
 
-class _SessionConfigurationScreenState extends State<SessionConfigurationScreen> {
+class _SessionConfigurationScreenState
+    extends State<SessionConfigurationScreen> {
   final _formKey = GlobalKey<FormState>();
   String _program = '';
   int _totalSessions = AppConstants.defaultTotalSessions;
   double _passThreshold = AppConstants.defaultPassThreshold;
   bool _isSubmitting = false;
-  
+
   final List<String> _programOptions = [
     'Computer Science',
     'Engineering',
@@ -35,13 +37,11 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
     'Law',
     'Arts & Humanities',
   ];
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Configure Session'),
-      ),
+      appBar: AppBar(title: Text('Configure Session')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -64,7 +64,7 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                           Text(
                             'New Attendance Session',
                             style: TextStyle(
-                              fontSize: 18, 
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -78,17 +78,17 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                   ),
                 ),
               ),
-              
+
               Text(
                 'Session Details',
                 style: TextStyle(
-                  fontSize: 18, 
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.blue.shade800,
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Program Dropdown
               DropdownButtonFormField<String>(
                 decoration: InputDecoration(
@@ -96,12 +96,13 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.school),
                 ),
-                items: _programOptions.map((program) {
-                  return DropdownMenuItem(
-                    value: program,
-                    child: Text(program),
-                  );
-                }).toList(),
+                items:
+                    _programOptions.map((program) {
+                      return DropdownMenuItem(
+                        value: program,
+                        child: Text(program),
+                      );
+                    }).toList(),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please select a program';
@@ -115,7 +116,7 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                 },
               ),
               SizedBox(height: 20),
-              
+
               // Session Count Slider
               Text(
                 'Total Number of Sessions: $_totalSessions',
@@ -134,7 +135,7 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                 },
               ),
               SizedBox(height: 20),
-              
+
               // Pass Threshold Slider
               Text(
                 'Attendance Pass Threshold: ${(_passThreshold * 100).round()}%',
@@ -153,7 +154,7 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                 },
               ),
               SizedBox(height: 20),
-              
+
               // Current Date & Time
               Card(
                 child: Padding(
@@ -174,7 +175,9 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                           Icon(Icons.calendar_today, color: Colors.blue),
                           SizedBox(width: 8),
                           Text(
-                            DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now()),
+                            DateFormat(
+                              'EEEE, MMMM d, yyyy',
+                            ).format(DateTime.now()),
                           ),
                         ],
                       ),
@@ -183,9 +186,7 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                         children: [
                           Icon(Icons.access_time, color: Colors.blue),
                           SizedBox(width: 8),
-                          Text(
-                            DateFormat('h:mm a').format(DateTime.now()),
-                          ),
+                          Text(DateFormat('h:mm a').format(DateTime.now())),
                         ],
                       ),
                     ],
@@ -193,19 +194,22 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                 ),
               ),
               SizedBox(height: 24),
-              
+
               // Start Session Button
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
                   icon: Icon(_isSubmitting ? null : Icons.play_circle_filled),
-                  label: _isSubmitting
-                      ? CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          strokeWidth: 2,
-                        )
-                      : Text('Start Attendance Session'),
+                  label:
+                      _isSubmitting
+                          ? CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                            strokeWidth: 2,
+                          )
+                          : Text('Start Attendance Session'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
@@ -214,7 +218,7 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Cancel Button
               SizedBox(
                 width: double.infinity,
@@ -230,17 +234,17 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
       ),
     );
   }
-  
+
   Future<void> _startSession() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    
+
     setState(() => _isSubmitting = true);
-    
+
     try {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
-      
+
       // Create a new session
       final sessionId = await appProvider.createSession(
         lecturerId: widget.lecturerId,
@@ -248,37 +252,35 @@ class _SessionConfigurationScreenState extends State<SessionConfigurationScreen>
         totalSessions: _totalSessions,
         passThreshold: _passThreshold,
       );
-      
-      if (sessionId == null) {
+
+      if (sessionId.isEmpty) {
         _showSnackBar('Failed to create session');
         setState(() => _isSubmitting = false);
         return;
       }
-      
+
       // Navigate to QR generation screen
       if (!mounted) return;
-      
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => QrGenerationScreen(
-            sessionId: sessionId,
-            program: _program,
-          ),
+          builder:
+              (context) =>
+                  QrGenerationScreen(sessionId: sessionId, program: _program),
         ),
       );
-      
     } catch (e) {
       print('Error starting session: $e');
       _showSnackBar('Error: $e');
       setState(() => _isSubmitting = false);
     }
   }
-  
+
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message))
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

@@ -1,6 +1,8 @@
 // lib/screens/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:uniapp/services/api_service.dart';
+import 'package:go_router/go_router.dart';
+import '../routes/app_routes.dart' as routes;
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -63,7 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           content: Text('Registration successful. Please log in.'),
         ),
       );
-      Navigator.pushReplacementNamed(context, '/login'); // Go to login page
+      context.go(routes.AppRoutes.login); // Go to login page using GoRouter
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(data['detail'] ?? 'Registration failed')),
@@ -177,7 +179,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const Text("Already have an account? "),
                   TextButton(
                     onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/login');
+                      context.go(routes.AppRoutes.login);
                     },
                     child: const Text('Login'),
                   ),

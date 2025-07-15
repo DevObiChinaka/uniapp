@@ -11,6 +11,7 @@ class User {
   final String? faceId;
   final String? program;
   final String? campusTag;
+  final bool isOnCampus;
 
   const User({
     required this.id,
@@ -19,6 +20,7 @@ class User {
     this.faceId,
     this.program,
     this.campusTag,
+    this.isOnCampus = false,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class User {
       faceId: json['face_id'] as String?,
       program: json['program'] as String?,
       campusTag: json['campus_tag'] as String?,
+      isOnCampus: json['is_on_campus'] as bool? ?? false,
     );
   }
 
@@ -40,6 +43,7 @@ class User {
       'face_id': faceId,
       'program': program,
       'campus_tag': campusTag,
+      'is_on_campus': isOnCampus,
     };
   }
 
@@ -50,6 +54,7 @@ class User {
     String? faceId,
     String? program,
     String? campusTag,
+    bool? isOnCampus,
   }) {
     return User(
       id: id ?? this.id,
@@ -58,6 +63,7 @@ class User {
       faceId: faceId ?? this.faceId,
       program: program ?? this.program,
       campusTag: campusTag ?? this.campusTag,
+      isOnCampus: isOnCampus ?? this.isOnCampus,
     );
   }
 }
@@ -190,7 +196,7 @@ class LeaveRequest {
   final DateTime startDate;
   final DateTime endDate;
   final String reason;
-  final String status; // pending, approved, denied
+  final LeaveRequestStatus status;
   final DateTime submittedAt;
   final DateTime? reviewedAt;
   final String? reviewerId;
@@ -216,7 +222,7 @@ class LeaveRequest {
       startDate: DateTime.parse(json['start_date'] as String),
       endDate: DateTime.parse(json['end_date'] as String),
       reason: json['reason'] as String,
-      status: json['status'] as String,
+      status: LeaveRequestStatus.fromString(json['status'] as String),
       submittedAt: DateTime.parse(json['submitted_at'] as String),
       reviewedAt:
           json['reviewed_at'] != null
@@ -234,7 +240,7 @@ class LeaveRequest {
       'start_date': startDate.toIso8601String(),
       'end_date': endDate.toIso8601String(),
       'reason': reason,
-      'status': status,
+      'status': status.value,
       'submitted_at': submittedAt.toIso8601String(),
       'reviewed_at': reviewedAt?.toIso8601String(),
       'reviewer_id': reviewerId,
@@ -252,7 +258,7 @@ class LeaveRequest {
     DateTime? startDate,
     DateTime? endDate,
     String? reason,
-    String? status,
+    LeaveRequestStatus? status,
     DateTime? submittedAt,
     DateTime? reviewedAt,
     String? reviewerId,
@@ -449,12 +455,14 @@ class OfflineAttendanceRecord {
       method: json['method'] as String,
       program: json['program'] as String?,
       isSynced: json['is_synced'] as bool? ?? false,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
-          : DateTime.now(),
-      extraData: json['extra_data'] != null
-          ? Map<String, dynamic>.from(json['extra_data'] as Map)
-          : const {},
+      createdAt:
+          json['created_at'] != null
+              ? DateTime.parse(json['created_at'] as String)
+              : DateTime.now(),
+      extraData:
+          json['extra_data'] != null
+              ? Map<String, dynamic>.from(json['extra_data'] as Map)
+              : const {},
     );
   }
 
@@ -544,4 +552,23 @@ class SyncStatus {
       lastError: lastError ?? this.lastError,
     );
   }
+}
+
+enum LeaveRequestStatus {
+  pending('pending'),
+  approved('approved'),
+  denied('denied');
+
+  final String value;
+  const LeaveRequestStatus(this.value);
+
+  factory LeaveRequestStatus.fromString(String status) {
+    return LeaveRequestStatus.values.firstWhere(
+      (e) => e.value == status.toLowerCase(),
+      orElse: () => LeaveRequestStatus.pending,
+    );
+  }
+
+  @override
+  String toString() => value;
 }

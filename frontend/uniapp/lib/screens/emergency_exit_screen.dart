@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uniapp/models/models.dart';
 import 'package:uniapp/screens/app_provider.dart';
-import 'package:uniapp/utils/utils.dart';
 
 class EmergencyExitScreen extends StatefulWidget {
   const EmergencyExitScreen({Key? key}) : super(key: key);
@@ -18,16 +16,16 @@ class _EmergencyExitScreenState extends State<EmergencyExitScreen> {
 
   Future<void> _submitEmergencyExit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     _formKey.currentState!.save();
     setState(() => _isSubmitting = true);
-    
+
     try {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
       final success = await appProvider.requestEmergencyExit(_reason);
-      
+
       if (!mounted) return;
-      
+
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -47,10 +45,7 @@ class _EmergencyExitScreenState extends State<EmergencyExitScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       setState(() => _isSubmitting = false);
@@ -126,12 +121,15 @@ class _EmergencyExitScreenState extends State<EmergencyExitScreen> {
               SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitEmergencyExit,
-                child: _isSubmitting
-                    ? CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        strokeWidth: 2,
-                      )
-                    : Text('Submit Emergency Exit Request'),
+                child:
+                    _isSubmitting
+                        ? CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                          strokeWidth: 2,
+                        )
+                        : Text('Submit Emergency Exit Request'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
@@ -142,9 +140,7 @@ class _EmergencyExitScreenState extends State<EmergencyExitScreen> {
               OutlinedButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text('Cancel'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                ),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
               ),
             ],
           ),

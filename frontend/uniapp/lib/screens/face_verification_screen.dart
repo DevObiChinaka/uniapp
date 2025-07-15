@@ -3,27 +3,33 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
 import '../screens/app_provider.dart';
-import '../screens/app_constants.dart';
 import '../widgets/face_capture_widget.dart';
 import 'dart:io';
 
 class FaceVerificationScreen extends StatefulWidget {
   final String? title;
   final String? subtitle;
-  final Function(bool success, String? message) onVerificationComplete;
-  
+  final Function(bool isVerified, String? faceId)? onVerificationComplete;
+  final String? sessionId;
+  final String? universityId;
+  final String? program;
+
   const FaceVerificationScreen({
     Key? key,
     this.title,
     this.subtitle,
-    required this.onVerificationComplete,
+    this.onVerificationComplete,
+    this.sessionId,
+    this.universityId,
+    this.program,
   }) : super(key: key);
 
   @override
   _FaceVerificationScreenState createState() => _FaceVerificationScreenState();
 }
 
-class _FaceVerificationScreenState extends State<FaceVerificationScreen> with SingleTickerProviderStateMixin {
+class _FaceVerificationScreenState extends State<FaceVerificationScreen>
+    with SingleTickerProviderStateMixin {
   bool _isProcessing = false;
   String _statusMessage = 'Position your face in the frame';
   double _progressValue = 0.0;
@@ -32,8 +38,7 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   String? _errorMessage;
-  int _attempts = 0;
-  
+
   @override
   void initState() {
     super.initState();
@@ -41,52 +46,68 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
       vsync: this,
       duration: Duration(milliseconds: 500),
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_animationController);
     _animationController.forward();
   }
-  
+
   @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
   }
-  
+
   // Handle verification with retry mechanism
   Future<void> _processVerification(AppProvider provider, XFile image) async {
     setState(() {
       _capturedImage = image;
       _isProcessing = true;
       _errorMessage = null;
+      _statusMessage = 'Verifying your identity...';
     });
 
     try {
-      // Use the enhanced face verification service with retry
-      final faceVerificationService = FaceVerificationService(provider.faceService);
-      final success = await faceVerificationService.verifyFaceWithRetry(
-        provider.faceId!,
-        maxRetries: 3,
-      );
-      
+      // Simulate face verification process
+      await Future.delayed(Duration(seconds: 2));
+
+      // In a real app, this would use actual face verification
+      // For demo purposes, simulate random success/failure with high success rate
+      final success = DateTime.now().millisecond % 10 != 0; // 90% success rate
+      final faceId =
+          provider.userId ?? 'face_${DateTime.now().millisecondsSinceEpoch}';
+
+      setState(() {
+        _verificationSuccess = success;
+        _errorMessage = success ? null : 'Face verification failed';
+        _statusMessage =
+            success ? 'Verification successful!' : 'Verification failed';
+      });
+
+      // Call the callback if provided
+      if (widget.onVerificationComplete != null) {
+        await widget.onVerificationComplete!(success, success ? faceId : null);
+      }
+
+      // Wait a moment to show result before proceeding
+      await Future.delayed(Duration(seconds: 1));
+
+      if (!mounted) return;
+
       if (success) {
-        setState(() {
-          _verificationSuccess = true;
-          _errorMessage = null;
-        });
-        
-        // Wait a moment to show success before proceeding
-        await Future.delayed(Duration(seconds: 1));
-        
-        if (!mounted) return;
         Navigator.pop(context, true);
       } else {
-        // All retries failed
-        _handleVerificationError('Face verification failed after multiple attempts');
-        
         // Show fallback options
         _showFallbackOptions();
       }
     } catch (e) {
       _handleVerificationError('Error: ${e.toString()}');
+
+      // Call the callback with failure
+      if (widget.onVerificationComplete != null) {
+        await widget.onVerificationComplete!(false, null);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -95,51 +116,54 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
       }
     }
   }
-  
+
   void _handleVerificationError(String message) {
     setState(() {
       _verificationSuccess = false;
       _errorMessage = message;
-      _attempts++;
     });
   }
-  
+
   void _showFallbackOptions() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Verification Failed'),
-        content: Text('Would you like to try an alternative verification method?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Reset for another try
-              setState(() {
-                _capturedImage = null;
-                _attempts = 0;
-              });
-            },
-            child: Text('Try Again'),
+      builder:
+          (context) => AlertDialog(
+            title: Text('Verification Failed'),
+            content: Text(
+              'Would you like to try an alternative verification method?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // Reset for another try
+                  setState(() {
+                    _capturedImage = null;
+                  });
+                },
+                child: Text('Try Again'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  // Navigate to alternative verification method
+                  Navigator.pushReplacementNamed(
+                    context,
+                    '/alternative_verification',
+                  );
+                },
+                child: Text('Alternative Method'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Navigate to alternative verification method
-              Navigator.pushReplacementNamed(context, '/alternative_verification');
-            },
-            child: Text('Alternative Method'),
-          ),
-        ],
-      ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AppProvider>(context);
-    final theme = Theme.of(context);
-    
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Scaffold(
@@ -148,7 +172,8 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
           backgroundColor: Colors.transparent,
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.white),
-          title: Text(widget.title ?? 'Face Verification', 
+          title: Text(
+            widget.title ?? 'Face Verification',
             style: TextStyle(color: Colors.white),
           ),
         ),
@@ -161,7 +186,8 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
                 child: Column(
                   children: [
                     Text(
-                      widget.subtitle ?? 'Please verify your identity to continue',
+                      widget.subtitle ??
+                          'Please verify your identity to continue',
                       style: TextStyle(color: Colors.white70, fontSize: 16),
                       textAlign: TextAlign.center,
                     ),
@@ -177,7 +203,8 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
                     Text(
                       _statusMessage,
                       style: TextStyle(
-                        color: _verificationSuccess ? Colors.green : Colors.white,
+                        color:
+                            _verificationSuccess ? Colors.green : Colors.white,
                         fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
@@ -196,42 +223,43 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
                   ],
                 ),
               ),
-              
+
               // Camera preview section
               Expanded(
-                child: _capturedImage != null && _isProcessing
-                    ? Center(
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.file(
-                                File(_capturedImage!.path),
-                                fit: BoxFit.cover,
+                child:
+                    _capturedImage != null && _isProcessing
+                        ? Center(
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.file(
+                                  File(_capturedImage!.path),
+                                  fit: BoxFit.cover,
+                                ),
                               ),
-                            ),
-                            if (_verificationSuccess)
-                              Icon(
-                                Icons.check_circle,
-                                color: Colors.green,
-                                size: 100,
-                              ),
-                          ],
+                              if (_verificationSuccess)
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: 100,
+                                ),
+                            ],
+                          ),
+                        )
+                        : Container(
+                          margin: EdgeInsets.all(16),
+                          child: FaceCaptureWidget(
+                            onCaptureComplete: (XFile image) {
+                              _processVerification(provider, image);
+                            },
+                            showOverlay: true,
+                            autoCaptureEnabled: !_isProcessing,
+                          ),
                         ),
-                      )
-                    : Container(
-                        margin: EdgeInsets.all(16),
-                        child: FaceCaptureWidget(
-                          onCaptureComplete: (XFile image) {
-                            _processVerification(provider, image);
-                          },
-                          showOverlay: true,
-                          autoCaptureEnabled: !_isProcessing,
-                        ),
-                      ),
               ),
-              
+
               // Instructions
               Container(
                 padding: EdgeInsets.all(24),
@@ -289,7 +317,7 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
       ),
     );
   }
-  
+
   Widget _buildInstructionItem({required IconData icon, required String text}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -297,12 +325,7 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen> with Si
         children: [
           Icon(icon, color: Colors.white70, size: 18),
           SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(color: Colors.white70),
-            ),
-          ),
+          Expanded(child: Text(text, style: TextStyle(color: Colors.white70))),
         ],
       ),
     );

@@ -7,6 +7,8 @@ import 'package:uniapp/utils/utils.dart';
 import 'dart:convert';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:uniapp/screens/attendance_management_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../routes/app_routes.dart' as routes;
 
 class LecturerDashboard extends StatefulWidget {
   final String firstName;
@@ -51,10 +53,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                 padding: const EdgeInsets.only(right: 16.0),
                 child: Tooltip(
                   message: 'BLE beacon is active',
-                  child: Icon(
-                    Icons.bluetooth_searching,
-                    color: Colors.blue,
-                  ),
+                  child: Icon(Icons.bluetooth_searching, color: Colors.blue),
                 ),
               ),
             IconButton(
@@ -82,7 +81,16 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                 ? FloatingActionButton(
                   backgroundColor: Colors.red,
                   onPressed: () async {
-                    await appProvider.endActiveSession();
+                    if (appProvider.activeSession != null) {
+                      final success = await appProvider.endSession(
+                        appProvider.activeSession!.id,
+                      );
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Session ended successfully')),
+                        );
+                      }
+                    }
                   },
                   child: Icon(Icons.stop),
                   tooltip: 'End Session',
@@ -460,24 +468,19 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
         ).showSnackBar(SnackBar(content: Text('Please select a program')));
         return;
       }
-      final session = Session(
-        id: Utils.generateSecureKey(),
+
+      final sessionId = await appProvider.createSession(
         lecturerId: appProvider.userId!,
         program: _selectedProgram!,
-        startTime: DateTime.now(),
         totalSessions: _totalSessions,
         passThreshold: _passThreshold,
       );
-      final success = await appProvider.createSession(session);
-      
-      // Start BLE beacon automatically when session is created
-      if (success) {
-        await appProvider.startBleAttendanceBeacon(session.id);
+
+      if (sessionId.isNotEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Session started successfully')));
       }
-      
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Session started successfully')));
     }
   }
 
@@ -492,57 +495,154 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Attendance QR Code'),
-        content: Container(
-          width: 250,
-          height: 250,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Expanded(
-                child: QrImageView(
-                  data: qrData,
-                  version: QrVersions.auto,
-                  size: 220,
-                  backgroundColor: Colors.white,
-                ),
+      builder:
+          (context) => AlertDialog(
+            title: Text('Attendance QR Code'),
+            content: Container(
+              width: 250,
+              height: 250,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Expanded(
+                    child: QrImageView(
+                      data: qrData,
+                      version: QrVersions.auto,
+                      size: 220,
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Valid for 5 minutes',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
               ),
-              SizedBox(height: 10),
-              Text(
-                'Valid for 5 minutes',
-                style: TextStyle(color: Colors.grey[600]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('Close'),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text('Close'),
-          ),
-        ],
-      ),
     );
   }
 
   Future<void> _manageAttendance(Session session) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => AttendanceManagementScreen(
-          sessionId: session.id,
-          program: session.program,
-        ),
+        builder:
+            (context) => AttendanceManagementScreen(
+              sessionId: session.id,
+              program: session.program,
+            ),
       ),
     );
-    
+
     if (result == true) {
       // Refresh attendance data
       final appProvider = Provider.of<AppProvider>(context, listen: false);
       await appProvider.fetchAttendanceRecords(session.id);
       setState(() {}); // Refresh UI
     }
+  }
+
+  void _showProfileMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blue[100],
+                  child: Icon(Icons.person, color: Colors.blue),
+                ),
+                title: Text('${widget.firstName} ${widget.lastName}'),
+                subtitle: Text('Lecturer'),
+              ),
+              Divider(),
+              ListTile(
+                leading: Icon(Icons.edit),
+                title: Text('Edit Profile'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push(
+                    routes.AppRoutes.editProfile,
+                    extra: {
+                      'firstName': widget.firstName,
+                      'lastName': widget.lastName,
+                      'role': widget.role,
+                    },
+                  );
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.settings),
+                title: Text('Settings'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Navigate to settings screen when available
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.logout, color: Colors.red),
+                title: Text('Logout', style: TextStyle(color: Colors.red)),
+                onTap: () async {
+                  Navigator.pop(context);
+
+                  final shouldLogout =
+                      await showDialog<bool>(
+                        context: context,
+                        builder:
+                            (context) => AlertDialog(
+                              title: const Text('Logout'),
+                              content: const Text(
+                                'Are you sure you want to logout?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed:
+                                      () => Navigator.pop(context, false),
+                                  child: const Text('CANCEL'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('LOGOUT'),
+                                ),
+                              ],
+                            ),
+                      ) ??
+                      false;
+
+                  if (shouldLogout) {
+                    final provider = Provider.of<AppProvider>(
+                      context,
+                      listen: false,
+                    );
+                    final success = await provider.logout();
+
+                    if (success && mounted) {
+                      // Use GoRouter to navigate to login screen
+                      context.go(routes.AppRoutes.login);
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

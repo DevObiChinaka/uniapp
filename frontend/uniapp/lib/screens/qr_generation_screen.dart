@@ -3,9 +3,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'dart:async';
-import 'package:provider/provider.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
-import 'package:uniapp/screens/app_provider.dart';
+// import 'package:uniapp/screens/app_provider.dart';
 import 'package:uniapp/screens/app_constants.dart';
 import 'package:uniapp/services/ble_service.dart';
 

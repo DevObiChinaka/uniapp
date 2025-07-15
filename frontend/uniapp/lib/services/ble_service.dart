@@ -8,6 +8,7 @@ class BleService {
   final FlutterReactiveBle _ble = FlutterReactiveBle();
   StreamSubscription<BleStatus>? _statusSubscription;
   StreamSubscription<DiscoveredDevice>? _scanSubscription;
+  StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
   
   bool _isAdvertising = false;
   bool _isScanning = false;
@@ -27,6 +28,16 @@ class BleService {
   final _scanCompleteController = StreamController<void>.broadcast();
   Stream<void> get onScanComplete => _scanCompleteController.stream;
   
+  // Enhanced error handling for BLE operations
+  final _errorController = StreamController<String>.broadcast();
+  Stream<String> get onError => _errorController.stream;
+  
+  void _handleError(String operation, dynamic error) {
+    final errorMessage = 'BLE $operation error: $error';
+    print(errorMessage);
+    _errorController.add(errorMessage);
+  }
+
   // Initialize
   Future<void> initialize() async {
     _statusStream = _ble.statusStream;
@@ -42,6 +53,7 @@ class BleService {
     
     _statusSubscription?.cancel();
     _scanSubscription?.cancel();
+    _connectionSubscription?.cancel();
     
     for (var subscription in _subscriptions) {
       subscription.cancel();
@@ -50,6 +62,7 @@ class BleService {
     _deviceDiscoveredController.close();
     _bleStatusController.close();
     _scanCompleteController.close();
+    _errorController.close();
   }
   
   // Check if BLE is available
@@ -58,7 +71,7 @@ class BleService {
       final status = await _ble.statusStream.first;
       return status == BleStatus.ready;
     } catch (e) {
-      print('Error checking BLE status: $e');
+      _handleError('availability check', e);
       return false;
     }
   }
@@ -86,7 +99,7 @@ class BleService {
           }
         },
         onError: (error) {
-          print('BLE scan error: $error');
+          _handleError('scan', error);
           _isScanning = false;
         },
       );
@@ -102,7 +115,7 @@ class BleService {
       
       return true;
     } catch (e) {
-      print('Error starting BLE scan: $e');
+      _handleError('start scanning', e);
       _isScanning = false;
       return false;
     }
@@ -120,7 +133,7 @@ class BleService {
       _isScanning = false;
       return true;
     } catch (e) {
-      print('Error stopping BLE scan: $e');
+      _handleError('stop scanning', e);
       return false;
     }
   }
@@ -151,7 +164,7 @@ class BleService {
         _ble.subscribeToCharacteristic(_characteristic!).listen((data) {
           // Handle read requests
         }, onError: (error) {
-          print('BLE peripheral error: $error');
+          _handleError('peripheral', error);
         }),
       );
       
@@ -175,13 +188,13 @@ class BleService {
           _characteristic!,
           value: payload,
         ).catchError((error) {
-          print('BLE advertising update error: $error');
+          _handleError('advertising update', error);
         });
       });
       
       return true;
     } catch (e) {
-      print('Error starting BLE advertising: $e');
+      _handleError('start advertising', e);
       return false;
     }
   }
@@ -203,7 +216,7 @@ class BleService {
       
       return true;
     } catch (e) {
-      print('Error stopping BLE advertising: $e');
+      _handleError('stop advertising', e);
       return false;
     }
   }
@@ -211,13 +224,21 @@ class BleService {
   // Connect to a device
   Future<bool> connectToDevice(String deviceId) async {
     try {
-      await _ble.connectToDevice(
+      _connectionSubscription = _ble.connectToDevice(
         id: deviceId,
         connectionTimeout: const Duration(seconds: 5),
-      ).first;
+      ).listen(
+        (connectionState) {
+          // Handle connection state changes
+          print('Connection state: ${connectionState.connectionState}');
+        },
+        onError: (error) {
+          _handleError('connection', error);
+        },
+      );
       return true;
     } catch (e) {
-      print('Error connecting to BLE device: $e');
+      _handleError('connect to device', e);
       return false;
     }
   }
@@ -225,10 +246,11 @@ class BleService {
   // Disconnect from a device
   Future<bool> disconnectDevice(String deviceId) async {
     try {
-      await _ble.disconnectDevice(id: deviceId);
+      await _connectionSubscription?.cancel();
+      _connectionSubscription = null;
       return true;
     } catch (e) {
-      print('Error disconnecting from BLE device: $e');
+      _handleError('disconnect from device', e);
       return false;
     }
   }
@@ -249,7 +271,7 @@ class BleService {
       final response = await _ble.readCharacteristic(characteristic);
       return utf8.decode(response);
     } catch (e) {
-      print('Error reading BLE characteristic: $e');
+      _handleError('read characteristic', e);
       return null;
     }
   }
@@ -275,7 +297,7 @@ class BleService {
       
       return true;
     } catch (e) {
-      print('Error writing BLE characteristic: $e');
+      _handleError('write characteristic', e);
       return false;
     }
   }
@@ -292,7 +314,7 @@ class BleService {
       
       return jsonDecode(sessionDataJson);
     } catch (e) {
-      print('Error getting cached session data: $e');
+      _handleError('get cached session data', e);
       return {};
     }
   }
@@ -303,7 +325,98 @@ class BleService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('ble_session_data', jsonEncode(sessionData));
     } catch (e) {
-      print('Error caching session data: $e');
+      _handleError('cache session data', e);
+    }
+  }
+  
+  // Get connection state for a device
+  Stream<ConnectionStateUpdate> getConnectionState(String deviceId) {
+    return _ble.connectToDevice(id: deviceId);
+  }
+  
+  // Check if currently scanning
+  bool get isScanning => _isScanning;
+  
+  // Check if currently advertising  
+  bool get isAdvertising => _isAdvertising;
+  
+  // Get discovered devices count
+  int get discoveredDevicesCount => _deviceDiscoveredController.hasListener ? 1 : 0;
+  
+  // Check if device is connected
+  Future<bool> isDeviceConnected(String deviceId) async {
+    try {
+      return _connectionSubscription != null;
+    } catch (e) {
+      _handleError('check device connection', e);
+      return false;
+    }
+  }
+  
+  // Get device information
+  Future<Map<String, dynamic>?> getDeviceInfo(String deviceId) async {
+    try {
+      // This would typically read device info characteristics
+      // For now, return cached info if available
+      final cachedData = await getCachedSessionData();
+      return cachedData['device_$deviceId'];
+    } catch (e) {
+      _handleError('get device info', e);
+      return null;
+    }
+  }
+  
+  // Save device information
+  Future<void> saveDeviceInfo(String deviceId, Map<String, dynamic> deviceInfo) async {
+    try {
+      final cachedData = await getCachedSessionData();
+      cachedData['device_$deviceId'] = deviceInfo;
+      await cacheSessionData(cachedData);
+    } catch (e) {
+      _handleError('save device info', e);
+    }
+  }
+  
+  // Convenience method for attendance beacon scanning
+  Future<bool> startAttendanceScanning() async {
+    return await startScanning(
+      serviceUuids: [AppConstants.bleServiceUuid],
+      scanDuration: Duration(seconds: AppConstants.bleScanDuration),
+    );
+  }
+  
+  // Check if device is an attendance beacon
+  bool isAttendanceBeacon(DiscoveredDevice device) {
+    return device.serviceUuids.contains(Uuid.parse(AppConstants.bleServiceUuid)) &&
+           device.rssi >= AppConstants.bleRssiThreshold;
+  }
+  
+  // Get attendance data from beacon
+  Future<Map<String, dynamic>?> getAttendanceData(DiscoveredDevice device) async {
+    if (!isAttendanceBeacon(device)) {
+      return null;
+    }
+    
+    try {
+      // Connect and read attendance data
+      final connected = await connectToDevice(device.id);
+      if (!connected) return null;
+      
+      final data = await readCharacteristic(
+        deviceId: device.id,
+        serviceUuid: AppConstants.bleServiceUuid,
+        characteristicUuid: AppConstants.bleCharacteristicUuid,
+      );
+      
+      await disconnectDevice(device.id);
+      
+      if (data != null) {
+        return jsonDecode(data);
+      }
+      return null;
+    } catch (e) {
+      _handleError('get attendance data', e);
+      return null;
     }
   }
 }

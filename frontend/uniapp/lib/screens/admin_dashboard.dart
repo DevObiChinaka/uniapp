@@ -6,7 +6,8 @@ import 'package:uniapp/screens/app_provider.dart';
 import 'package:uniapp/models/models.dart';
 import 'package:uniapp/utils/utils.dart';
 import 'package:uniapp/widgets/widgets.dart';
-import 'package:uniapp/screens/profile_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../routes/app_routes.dart' as routes;
 
 class AdminDashboard extends StatefulWidget {
   final String firstName;
@@ -58,6 +59,47 @@ class _AdminDashboardState extends State<AdminDashboard>
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final shouldLogout =
+                  await showDialog<bool>(
+                    context: context,
+                    builder:
+                        (context) => AlertDialog(
+                          title: const Text('Logout'),
+                          content: const Text(
+                            'Are you sure you want to logout?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('CANCEL'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('LOGOUT'),
+                            ),
+                          ],
+                        ),
+                  ) ??
+                  false;
+
+              if (shouldLogout) {
+                final provider = Provider.of<AppProvider>(
+                  context,
+                  listen: false,
+                );
+                final success = await provider.logout();
+
+                if (success && mounted) {
+                  // Navigate to login screen
+                  context.go(routes.AppRoutes.login);
+                }
+              }
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
             child: FutureBuilder<String?>(
@@ -71,17 +113,14 @@ class _AdminDashboardState extends State<AdminDashboard>
 
                 return GestureDetector(
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (_) => ProfileScreen(
-                              firstName: widget.firstName,
-                              lastName: widget.lastName,
-                              universityId: widget.universityId,
-                              role: widget.role,
-                            ),
-                      ),
+                    context.push(
+                      routes.AppRoutes.editProfile,
+                      extra: {
+                        'firstName': widget.firstName,
+                        'lastName': widget.lastName,
+                        'universityId': widget.universityId,
+                        'role': widget.role,
+                      },
                     );
                   },
                   child: CircleAvatar(
@@ -197,7 +236,7 @@ class _AdminDashboardState extends State<AdminDashboard>
               .toList(),
       onChanged: (value) {
         if (value != null) {
-          provider.updateCampusTag(student.id, value);
+          provider.updateCampusTag(student.id, value == 'on-campus');
         }
       },
       dropdownColor: Colors.white,
@@ -227,7 +266,7 @@ class _AdminDashboardState extends State<AdminDashboard>
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
-        leading: StatusTag(leave.status),
+        leading: StatusTag(leave.status.value),
         title: Text(
           '${Utils.formatDate(leave.startDate)} - ${Utils.formatDate(leave.endDate)}',
           style: TextStyle(fontWeight: FontWeight.w500),
@@ -263,8 +302,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                         onPressed:
                             () => provider.updateLeaveStatus(
                               leave.id,
-                              'approved',
-                              null,
+                              LeaveRequestStatus.approved,
                             ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
@@ -333,8 +371,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                 onPressed: () {
                   provider.updateLeaveStatus(
                     leave.id,
-                    'denied',
-                    controller.text,
+                    LeaveRequestStatus.denied,
                   );
                   Navigator.pop(context);
                 },

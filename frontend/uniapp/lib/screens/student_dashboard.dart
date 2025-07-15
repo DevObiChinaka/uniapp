@@ -5,17 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uniapp/screens/profile_screen.dart';
-import 'package:camera/camera.dart'; // Ensure camera is in pubspec.yaml
-import 'package:uniapp/screens/app_constants.dart';
+import 'package:camera/camera.dart';
 import 'package:uniapp/screens/app_provider.dart';
-import 'package:uniapp/screens/emergency_exit_screen.dart';
-import 'package:uniapp/models/models.dart';
 import 'package:uniapp/utils/utils.dart';
-import 'package:uniapp/widgets/widgets.dart';
-import 'package:uniapp/services/session_service.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:convert';
+import 'package:go_router/go_router.dart';
+import '../routes/app_routes.dart' as routes;
 
 class StudentDashboard extends StatefulWidget {
   final String firstName;
@@ -75,6 +69,7 @@ class _StudentDashboardState extends State<StudentDashboard>
   Widget build(BuildContext context) {
     final appProvider = Provider.of<AppProvider>(context);
     final theme = Theme.of(context);
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -85,9 +80,11 @@ class _StudentDashboardState extends State<StudentDashboard>
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: PreferredSize(
-          preferredSize: Size.fromHeight(110),
-          child: Container(
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          toolbarHeight: 110,
+          flexibleSpace: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFFa1c4fd), Color(0xFFc2e9fb)],
@@ -125,17 +122,14 @@ class _StudentDashboardState extends State<StudentDashboard>
                               imagePath != null && File(imagePath).existsSync();
                           return GestureDetector(
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => ProfileScreen(
-                                        firstName: widget.firstName,
-                                        lastName: widget.lastName,
-                                        universityId: widget.universityId,
-                                        role: widget.role,
-                                      ),
-                                ),
+                              context.push(
+                                routes.AppRoutes.editProfile,
+                                extra: {
+                                  'firstName': widget.firstName,
+                                  'lastName': widget.lastName,
+                                  'universityId': widget.universityId,
+                                  'role': widget.role,
+                                },
                               );
                             },
                             child: CircleAvatar(
@@ -184,11 +178,57 @@ class _StudentDashboardState extends State<StudentDashboard>
                         ],
                       ),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.logout, color: Colors.blueGrey),
+                      tooltip: 'Logout',
+                      onPressed: () async {
+                        final shouldLogout =
+                            await showDialog<bool>(
+                              context: context,
+                              builder:
+                                  (context) => AlertDialog(
+                                    title: const Text('Logout'),
+                                    content: const Text(
+                                      'Are you sure you want to logout?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed:
+                                            () => Navigator.pop(context, false),
+                                        child: const Text('CANCEL'),
+                                      ),
+                                      TextButton(
+                                        onPressed:
+                                            () => Navigator.pop(context, true),
+                                        child: const Text('LOGOUT'),
+                                      ),
+                                    ],
+                                  ),
+                            ) ??
+                            false;
+
+                        if (shouldLogout) {
+                          final provider = Provider.of<AppProvider>(
+                            context,
+                            listen: false,
+                          );
+                          final success = await provider.logout();
+
+                          if (success && mounted) {
+                            // Navigate to login screen
+                            context.go(routes.AppRoutes.login);
+                          }
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
             ),
           ),
+          title: const Text(
+            '',
+          ), // Empty title to create space for flexibleSpace content
         ),
         body: Padding(
           padding: const EdgeInsets.only(top: 8.0),
@@ -341,8 +381,8 @@ class _StudentDashboardState extends State<StudentDashboard>
                   isLoading
                       ? null
                       : () async {
-                          _startQRAttendanceScanner(appProvider);
-                        },
+                        _startQRAttendanceScanner(appProvider);
+                      },
             ),
             SizedBox(height: 16),
           ] else ...[
@@ -547,7 +587,7 @@ class _StudentDashboardState extends State<StudentDashboard>
                             ),
                             subtitle: Text(leave.reason),
                             trailing: Chip(
-                              label: Text(leave.status),
+                              label: Text(leave.status.value),
                               backgroundColor:
                                   leave.status == 'approved'
                                       ? Colors.green[100]
@@ -715,79 +755,88 @@ class _StudentDashboardState extends State<StudentDashboard>
   void _startQRAttendanceScanner(AppProvider appProvider) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('QR Attendance Scanner'),
-        contentPadding: EdgeInsets.zero,
-        content: Container(
-          height: 300,
-          width: 300,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              MobileScanner(
-                controller: _qrController ??= MobileScannerController(),
-                onDetect: (capture) async {
-                  final barcodes = capture.barcodes;
-                  if (barcodes.isNotEmpty) {
-                    final barcode = barcodes.first;
-                    if (barcode.rawValue != null) {
-                      // Close the dialog first
-                      Navigator.pop(context);
-                      
-                      // Process the QR code for attendance
-                      await _processQRAttendance(barcode.rawValue!, appProvider);
-                    }
-                  }
-                },
+      builder:
+          (context) => AlertDialog(
+            title: Text('QR Attendance Scanner'),
+            contentPadding: EdgeInsets.zero,
+            content: Container(
+              height: 300,
+              width: 300,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  MobileScanner(
+                    controller: _qrController ??= MobileScannerController(),
+                    onDetect: (capture) async {
+                      final barcodes = capture.barcodes;
+                      if (barcodes.isNotEmpty) {
+                        final barcode = barcodes.first;
+                        if (barcode.rawValue != null) {
+                          // Close the dialog first
+                          Navigator.pop(context);
+
+                          // Process the QR code for attendance
+                          await _processQRAttendance(
+                            barcode.rawValue!,
+                            appProvider,
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.blue, width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    width: 200,
+                    height: 200,
+                  ),
+                ],
               ),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blue, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                width: 200,
-                height: 200,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: Text('Cancel'),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text('Cancel'),
-          ),
-        ],
-      ),
     );
   }
 
-  Future<void> _processQRAttendance(String qrData, AppProvider appProvider) async {
+  Future<void> _processQRAttendance(
+    String qrData,
+    AppProvider appProvider,
+  ) async {
     try {
       // Parse the QR data to get session information
       Map<String, dynamic> sessionData = {};
       try {
         sessionData = Map<String, dynamic>.from(jsonDecode(qrData));
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid QR code format')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Invalid QR code format')));
         return;
       }
 
       // Validate QR data contains required session info
-      if (!sessionData.containsKey('session_id') || 
-          !sessionData.containsKey('lecturer_id') || 
+      if (!sessionData.containsKey('session_id') ||
+          !sessionData.containsKey('lecturer_id') ||
           !sessionData.containsKey('timestamp')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid attendance QR code')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Invalid attendance QR code')));
         return;
       }
 
       // Verify session is still active
-      final timestamp = DateTime.fromMillisecondsSinceEpoch(sessionData['timestamp']);
+      final timestamp = DateTime.fromMillisecondsSinceEpoch(
+        sessionData['timestamp'],
+      );
       final now = DateTime.now();
       if (now.difference(timestamp).inMinutes > 5) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -798,10 +847,10 @@ class _StudentDashboardState extends State<StudentDashboard>
 
       // Mark attendance using QR method
       await appProvider.markQRAttendance(
-        sessionData['session_id'], 
+        sessionData['session_id'],
         sessionData['lecturer_id'],
       );
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Attendance marked successfully via QR')),
       );
@@ -813,11 +862,7 @@ class _StudentDashboardState extends State<StudentDashboard>
   }
 
   Future<void> _requestEmergencyExit(AppProvider appProvider) async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => EmergencyExitScreen(),
-      ),
-    );
+    final result = await context.push<bool>(routes.AppRoutes.emergencyExit);
 
     if (result == true) {
       // Request was successful, refresh state

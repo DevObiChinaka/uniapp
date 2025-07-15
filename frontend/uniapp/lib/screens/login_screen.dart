@@ -1,9 +1,9 @@
 // login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:uniapp/services/auth_service.dart';
-import 'package:uniapp/screens/student_dashboard.dart';
-import 'package:uniapp/screens/admin_dashboard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
+import '../routes/app_routes.dart' as routes;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -69,35 +69,19 @@ class _LoginScreenState extends State<LoginScreen> {
     };
     switch (role) {
       case 'student':
-        Navigator.pushReplacementNamed(
-          context,
-          '/student_dashboard',
-          arguments: args,
-        );
+        context.go(routes.AppRoutes.studentDashboard, extra: args);
         break;
       case 'admin':
-        Navigator.pushReplacementNamed(
-          context,
-          '/admin_dashboard',
-          arguments: args,
-        );
+        context.go(routes.AppRoutes.adminDashboard, extra: args);
         break;
       case 'lecturer':
-        Navigator.pushReplacementNamed(
-          context,
-          '/lecturer_dashboard',
-          arguments: args,
-        );
+        context.go(routes.AppRoutes.lecturerDashboard, extra: args);
         break;
       case 'security':
-        Navigator.pushReplacementNamed(
-          context,
-          '/security_dashboard',
-          arguments: args,
-        );
+        context.go(routes.AppRoutes.securityDashboard, extra: args);
         break;
       default:
-        Navigator.pushReplacementNamed(context, '/login');
+        context.go(routes.AppRoutes.login);
     }
   }
 
@@ -132,48 +116,23 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setBool('is_logged_in', true); // <-- Set after login
 
       // Navigate to appropriate dashboard based on role
+      final args = {
+        'firstName': data['first_name'],
+        'lastName': data['last_name'],
+        'universityId': data['university_id'],
+        'token': data['access'],
+        'role': data['role'],
+      };
+
       switch (data['role']) {
         case 'student':
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (_) => StudentDashboard(
-                    firstName: data['first_name'],
-                    lastName: data['last_name'],
-                    universityId: data['university_id'],
-                    token: data['access'],
-                    role: data['role'],
-                  ),
-            ),
-          );
+          context.go(routes.AppRoutes.studentDashboard, extra: args);
           break;
         case 'admin':
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (_) => AdminDashboard(
-                    firstName: data['first_name'],
-                    lastName: data['last_name'],
-                    universityId: data['university_id'],
-                    token: data['access'],
-                    role: data['role'],
-                  ),
-            ),
-          );
+          context.go(routes.AppRoutes.adminDashboard, extra: args);
           break;
         case 'lecturer':
-          // Add LecturerDashboard here when implemented
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (_) => Scaffold(
-                    body: Center(child: Text('Lecturer Dashboard Coming Soon')),
-                  ),
-            ),
-          );
+          context.go(routes.AppRoutes.lecturerDashboard, extra: args);
           break;
         default:
           setState(() {
@@ -189,8 +148,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isStudent = role == 'student';
-
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -338,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 10),
                     TextButton(
                       onPressed: () {
-                        Navigator.pushNamed(context, '/register');
+                        context.go(routes.AppRoutes.register);
                       },
                       child: const Text('Don’t have an account? Register here'),
                     ),

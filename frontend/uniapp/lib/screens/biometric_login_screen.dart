@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'package:go_router/go_router.dart';
 import 'package:uniapp/services/biometric_service.dart';
 import 'package:uniapp/screens/app_constants.dart';
+import '../routes/app_routes.dart' as routes;
 
 class BiometricLoginScreen extends StatefulWidget {
   const BiometricLoginScreen({super.key});
@@ -134,16 +135,15 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
           if (data['username'] != null)
             await prefs.setString('username', data['username']);
           if (!mounted) return;
-          Navigator.pushReplacementNamed(
-            context,
-            '/admin_dashboard',
-            arguments: {'username': data['username'] ?? '', 'token': token},
+          context.go(
+            routes.AppRoutes.adminDashboard,
+            extra: {'username': data['username'] ?? '', 'token': token},
           );
         } else {
           if (data['university_id'] != null)
             await prefs.setString('university_id', data['university_id']);
           if (!mounted) return;
-          
+
           final role = data['role'] ?? '';
           final args = {
             'firstName': data['first_name'] ?? '',
@@ -152,23 +152,23 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
             'token': token,
             'role': role,
           };
-          
+
           // Navigate based on role
           switch (role) {
             case AppConstants.studentRole:
-              Navigator.pushReplacementNamed(context, AppRoutes.studentDashboard, arguments: args);
+              context.go(routes.AppRoutes.studentDashboard, extra: args);
               break;
             case AppConstants.lecturerRole:
-              Navigator.pushReplacementNamed(context, AppRoutes.lecturerDashboard, arguments: args);
+              context.go(routes.AppRoutes.lecturerDashboard, extra: args);
               break;
             case AppConstants.securityRole:
-              Navigator.pushReplacementNamed(context, AppRoutes.securityDashboard, arguments: args);
+              context.go(routes.AppRoutes.securityDashboard, extra: args);
               break;
             case AppConstants.adminRole:
-              Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard, arguments: args);
+              context.go(routes.AppRoutes.adminDashboard, extra: args);
               break;
             default:
-              Navigator.pushReplacementNamed(context, AppRoutes.login);
+              context.go(routes.AppRoutes.login);
           }
         }
       } else {
@@ -184,7 +184,7 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
 
   void _navigateToLogin() {
     print('Redirecting to manual login...');
-    Navigator.pushReplacementNamed(context, '/login');
+    context.go(routes.AppRoutes.login);
   }
 
   void _showSnackBar(String message) {

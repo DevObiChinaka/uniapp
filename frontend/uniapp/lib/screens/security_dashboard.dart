@@ -8,6 +8,8 @@ import '../services/core_services.dart';
 import '../models/models.dart';
 import '../utils/utils.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:go_router/go_router.dart';
+import '../routes/app_routes.dart' as routes;
 
 class SecurityDashboard extends StatefulWidget {
   final String token;
@@ -101,6 +103,49 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
       child: Scaffold(
         appBar: AppBar(
           title: Text('Security Dashboard'),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.logout),
+              tooltip: 'Logout',
+              onPressed: () async {
+                final shouldLogout =
+                    await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (context) => AlertDialog(
+                            title: const Text('Logout'),
+                            content: const Text(
+                              'Are you sure you want to logout?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('CANCEL'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('LOGOUT'),
+                              ),
+                            ],
+                          ),
+                    ) ??
+                    false;
+
+                if (shouldLogout) {
+                  final provider = Provider.of<AppProvider>(
+                    context,
+                    listen: false,
+                  );
+                  final success = await provider.logout();
+
+                  if (success && mounted) {
+                    // Navigate to login screen
+                    context.go(routes.AppRoutes.login);
+                  }
+                }
+              },
+            ),
+          ],
           bottom: TabBar(
             tabs: [
               Tab(icon: Icon(Icons.qr_code)),

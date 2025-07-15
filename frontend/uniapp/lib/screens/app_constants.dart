@@ -18,8 +18,11 @@ class AppConstants {
   static const String hmacSecretKey =
       'a3d7b9e2a1f91bd1c21a746a14e55c4a1c2f387b3f45e2c3f74a2f816b6d5a49';
 
+  // Debug settings
+  static const bool enforceVerificationInDebug = false;
+
   // API Configuration
-  static const String baseUrl = 'http://172.20.10.11:8000/api';
+  static const String baseUrl = 'http://10.225.174.34:8000/api';
   static const String faceApiEndpoint =
       'https://facin-api-test.cognitiveservices.azure.com/';
 
@@ -71,15 +74,17 @@ class AppConstants {
   static const double faceConfidenceThreshold = 0.7;
 
   // Face API Keys
-  static const String faceApiKey1 = 'FFveXtbSQaaGJWRS5Mxj93MF02EQromA5BC77OjHCdbHMxgawg0OJQQJ99BGACYeBjFXJ3w3AAAKACOGqsqC';
-  static const String faceApiKey2 = '5DcKp6aLK3sAp4wsBPcqEgFrfP3dxecrYiNB5Gzrr12vBlWwunfMJQQJ99BGACYeBjFXJ3w3AAAKACOGjSzE';
+  static const String faceApiKey1 =
+      'FFveXtbSQaaGJWRS5Mxj93MF02EQromA5BC77OjHCdbHMxgawg0OJQQJ99BGACYeBjFXJ3w3AAAKACOGqsqC';
+  static const String faceApiKey2 =
+      '5DcKp6aLK3sAp4wsBPcqEgFrfP3dxecrYiNB5Gzrr12vBlWwunfMJQQJ99BGACYeBjFXJ3w3AAAKACOGjSzE';
   static const String faceApiRegion = 'eastus';
 
   // Offline Support
   static const String offlineAttendanceKey = 'offline_attendance';
   static const int offlineSyncInterval = 5; // minutes
   static const int maxOfflineRecords = 50;
-  
+
   // Data Synchronization
   static const bool enableAutoSync = true;
   static const int syncRetryAttempts = 3;

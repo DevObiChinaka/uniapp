@@ -1,0 +1,445 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'app_constants.dart';
+import '../services/core_services.dart';
+import '../services/face_service.dart';
+import '../models/models.dart';
+import '../services/session_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../main.dart'; // For navigatorKey
+import '../utils/offline_utils.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
+import '../models/verification_result.dart';
+import '../models/mark_attendance_result.dart';
+import '../models/sync_status.dart';
+import '../models/face_exception.dart';
+
+class AppProvider with ChangeNotifier {
+  final CoreServices coreServices;
+  final FaceService faceService;
+  late SessionService sessionService;
+
+  // User state
+  String? _role;
+  String? _faceId;
+  String? _userId;
+  String? _currentProgram;
+
+  // BLE state
+  bool _isScanning = false;
+  bool _isBroadcasting = false;
+  List<DiscoveredDevice> _bleDevices = [];
+  StreamSubscription<DiscoveredDevice>? _scanSubscription;
+
+  // Session state
+  Session? _activeSession;
+  bool _inSession = false;
+  List<Session> _sessions = [];
+  double _attendanceThreshold = AppConstants.defaultPassThreshold;
+  int _totalSessions = AppConstants.defaultTotalSessions;
+
+  // Attendance state
+  List<AttendanceRecord> _attendanceRecords = [];
+  Map<String, int> _attendanceStats = {};
+
+  // Leave state
+  List<LeaveRequest> _leaveRequests = [];
+  bool _isSubmittingLeave = false;
+
+  // Notification state
+  List<AppNotification> _notifications = [];
+
+  // Gate exit state
+  bool _isExitProcessing = false;
+  ExitResult? _lastExitResult;
+
+  // Admin state
+  List<User> _allStudents = [];
+  List<LeaveRequest> _allLeaveRequests = [];
+  List<SystemLog> _systemLogs = [];
+
+  // Loading states
+  bool _isLoading = false;
+  String? _loadingMessage;
+
+  // Offline support
+  List<OfflineAttendanceRecord> _offlineAttendanceRecords = [];
+  SyncStatus _syncStatus = SyncStatus.initial();
+  bool _isNetworkAvailable = true;
+  Timer? _syncTimer;
+
+  // Connectivity service
+  late ConnectivityService _connectivityService;
+  bool _isSyncingOfflineAttendance = false;
+  List<OfflineAttendanceRecord> get _pendingOfflineAttendance => 
+      _offlineAttendanceRecords.where((record) => !record.isSynced).toList();
+
+  AppProvider({required this.coreServices, required this.faceService});
+
+  // Getters
+  String? get role => _role;
+  String? get faceId => _faceId;
+  String? get userId => _userId;
+  bool get isScanning => _isScanning;
+  bool get isBleBroadcasting => _isBroadcasting;
+  bool get inSession => _inSession;
+  Session? get activeSession => _activeSession;
+  List<Session> get sessions => _sessions;
+  double get attendanceThreshold => _attendanceThreshold;
+  int get totalSessions => _totalSessions;
+  List<AttendanceRecord> get attendanceRecords => _attendanceRecords;
+  Map<String, int> get attendanceStats => _attendanceStats;
+  List<LeaveRequest> get leaveRequests => _leaveRequests;
+  bool get isSubmittingLeave => _isSubmittingLeave;
+  List<AppNotification> get notifications => _notifications;
+  bool get isExitProcessing => _isExitProcessing;
+  ExitResult? get lastExitResult => _lastExitResult;
+  bool get isLoading => _isLoading;
+  String? get loadingMessage => _loadingMessage;
+  List<User> get allStudents => _allStudents;
+  List<LeaveRequest> get allLeaveRequests => _allLeaveRequests;
+  List<SystemLog> get systemLogs => _systemLogs;
+  List<DiscoveredDevice> get bleDevices => _bleDevices;
+
+  // Offline attendance getters
+  List<OfflineAttendanceRecord> get pendingOfflineAttendance => _pendingOfflineAttendance;
+  bool get isSyncingOfflineAttendance => _isSyncingOfflineAttendance;
+  bool get isNetworkAvailable => _isNetworkAvailable;
+  List<OfflineAttendanceRecord> get offlineAttendanceRecords => _offlineAttendanceRecords;
+  SyncStatus get syncStatus => _syncStatus;
+  bool get hasPendingRecords => _offlineAttendanceRecords.any((record) => !record.isSynced);
+
+  // Setters
+  set attendanceThreshold(double value) {
+    _attendanceThreshold = value;
+    notifyListeners();
+  }
+
+  set totalSessions(int value) {
+    _totalSessions = value;
+    notifyListeners();
+  }
+
+  // Create a new session with specified parameters
+  Future<String> createSession({
+    required String lecturerId,
+    required String program,
+    required int totalSessions,
+    required double passThreshold,
+  }) async {
+    _setLoading(true, 'Creating session...');
+    
+    try {
+      // Generate a session ID
+      final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+      
+      // Create session object
+      final session = Session(
+        id: sessionId,
+        lecturerId: lecturerId,
+        program: program,
+        startTime: DateTime.now(),
+        totalSessions: totalSessions,
+        passThreshold: passThreshold,
+      );
+      
+      // In a real app, this would send data to the server
+      debugPrint('Created session: ${session.id}');
+      
+      return sessionId;
+    } catch (e) {
+      debugPrint('Create session error: $e');
+      return ''; // Return empty string to indicate failure
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Fetch all sessions for a lecturer
+  Future<List<Session>> fetchLecturerSessions(String lecturerId) async {
+    _setLoading(true, 'Fetching sessions...');
+    
+    try {
+      // In a real app, this would fetch from the server
+      // Return some mock sessions for now
+      final now = DateTime.now();
+      final yesterday = now.subtract(const Duration(days: 1));
+      
+      // Mock active session
+      final activeSession = Session(
+        id: '1',
+        lecturerId: lecturerId,
+        program: 'Computer Science 101',
+        startTime: now.subtract(const Duration(minutes: 30)),
+      );
+      
+      // Mock past sessions
+      final pastSession1 = Session(
+        id: '2',
+        lecturerId: lecturerId,
+        program: 'Computer Science 101',
+        startTime: yesterday,
+        endTime: yesterday.add(const Duration(hours: 2)),
+      );
+      
+      final pastSession2 = Session(
+        id: '3',
+        lecturerId: lecturerId,
+        program: 'Data Structures',
+        startTime: yesterday.subtract(const Duration(days: 1)),
+        endTime: yesterday.subtract(const Duration(days: 1)).add(const Duration(hours: 2)),
+      );
+      
+      return [activeSession, pastSession1, pastSession2];
+    } catch (e) {
+      debugPrint('Error fetching lecturer sessions: $e');
+      return [];
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // End an active session
+  Future<bool> endSession(String sessionId) async {
+    _setLoading(true, 'Ending session...');
+    
+    try {
+      // In a real app, this would send data to the server
+      debugPrint('Ended session: $sessionId');
+      return true; // Return success
+    } catch (e) {
+      debugPrint('Error ending session: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Get attendance statistics for a specific session
+  Future<Map<String, dynamic>> getSessionAttendanceStats(String sessionId) async {
+    _setLoading(true, 'Fetching attendance statistics...');
+    
+    try {
+      // In a real app, this would fetch data from the server
+      // Return mock statistics based on the session ID
+      final mockStats = {
+        'present_count': 10,
+        'absent_count': 5,
+        'total_students': 15,
+        'attendance_percentage': 66.7,
+        'session_id': sessionId,
+        'students': [
+          {'id': '1', 'name': 'John Doe', 'status': 'present', 'time': '10:15 AM'},
+          {'id': '2', 'name': 'Jane Smith', 'status': 'present', 'time': '10:05 AM'},
+          {'id': '3', 'name': 'Bob Johnson', 'status': 'absent', 'time': null},
+        ]
+      };
+      
+      return mockStats;
+    } catch (e) {
+      debugPrint('Error getting session attendance stats: $e');
+      return {
+        'error': 'Failed to load attendance statistics',
+        'present_count': 0,
+        'absent_count': 0,
+        'total_students': 0,
+        'attendance_percentage': 0,
+      };
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Mark attendance using QR code
+  Future<void> markQRAttendance(String sessionId, String lecturerId) async {
+    if (_faceId == null) return;
+
+    _setLoading(true, 'Verifying QR attendance...');
+    try {
+      // Verify face
+      final verification = await faceService.verifyFace(_faceId!);
+      if (!verification.isIdentical ||
+          verification.confidence < AppConstants.faceConfidenceThreshold) {
+        throw FaceException('Face verification failed');
+      }
+
+      if (_isNetworkAvailable) {
+        try {
+          // Try to mark attendance with QR method online
+          final success = await coreServices.markQRAttendance(
+            userId: _userId!,
+            sessionId: sessionId,
+            faceVerified: true,
+          );
+
+          if (success) {
+            _attendanceRecords.add(
+              AttendanceRecord(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                userId: _userId!,
+                sessionId: sessionId,
+                timestamp: DateTime.now(),
+                method: 'QR+Face',
+                program: _currentProgram,
+              ),
+            );
+            _calculateAttendanceStats();
+            notifyListeners();
+            return;
+          }
+        } catch (networkError) {
+          debugPrint('Network error, saving QR attendance offline: $networkError');
+        }
+      }
+      
+      // If we got here, either there's no network or the online request failed
+      // Save the attendance record offline
+      final recordId = DateTime.now().millisecondsSinceEpoch.toString();
+      
+      final offlineRecord = OfflineAttendanceRecord(
+        id: recordId,
+        userId: _userId!,
+        sessionId: sessionId,
+        timestamp: DateTime.now(),
+        method: 'QR+Face',
+        program: _currentProgram,
+        createdAt: DateTime.now(),
+        extraData: {
+          'face_verified': true,
+          'verification_confidence': verification.confidence,
+          'lecturer_id': lecturerId,
+        },
+      );
+      
+      await _addOfflineAttendanceRecord(offlineRecord);
+      
+      // Also add to local records for immediate UI update
+      _attendanceRecords.add(offlineRecord.toAttendanceRecord());
+      _calculateAttendanceStats();
+      notifyListeners();
+      
+      // Show offline indicator
+      _showOfflineAttendanceMessage();
+    } catch (e) {
+      debugPrint('QR Attendance error: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Process gate exit request
+  Future<void> processGateExit(String qrData) async {
+    _isExitProcessing = true;
+    _lastExitResult = null;
+    notifyListeners();
+    
+    try {
+      // Simulate processing time
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // Parse QR data (in a real app this would be verified with backend)
+      bool isValid = qrData.startsWith('EXIT:');
+      
+      // Set the exit result
+      _lastExitResult = ExitResult(
+        allowed: isValid,
+        message: isValid 
+            ? 'Exit approved. You may leave the campus.'
+            : 'Invalid exit code. Please try again or contact security.',
+      );
+    } catch (e) {
+      debugPrint('Exit error: $e');
+      _lastExitResult = ExitResult(
+        allowed: false,
+        message: 'Error processing exit: ${e.toString()}',
+      );
+    } finally {
+      _isExitProcessing = false;
+      notifyListeners();
+    }
+  }
+  
+  // Clear the last exit result
+  void clearExitResult() {
+    _lastExitResult = null;
+    notifyListeners();
+  }
+  
+  // Helper methods
+  void _setLoading(bool loading, [String? message]) {
+    _isLoading = loading;
+    _loadingMessage = message;
+    notifyListeners();
+  }
+
+  void _calculateAttendanceStats() {
+    final stats = <String, int>{};
+    for (var record in _attendanceRecords) {
+      final program = record.program ?? _currentProgram ?? 'default';
+      stats.update(program, (count) => count + 1, ifAbsent: () => 1);
+    }
+    _attendanceStats = stats;
+    notifyListeners();
+  }
+  
+  // Add offline attendance record to local storage
+  Future<bool> _addOfflineAttendanceRecord(OfflineAttendanceRecord record) async {
+    try {
+      // Add to in-memory list
+      _offlineAttendanceRecords.add(record);
+      
+      // Update sync status
+      _updateSyncStatus();
+      
+      // Save to persistent storage
+      final success = await OfflineDataManager.saveOfflineAttendance(record);
+      return success;
+    } catch (e) {
+      debugPrint('Error saving offline attendance: $e');
+      return false;
+    }
+  }
+  
+  // Update the sync status with latest counts
+  void _updateSyncStatus() {
+    final totalRecords = _offlineAttendanceRecords.length;
+    final syncedRecords = _offlineAttendanceRecords.where((r) => r.isSynced).length;
+    
+    _syncStatus = SyncStatus(
+      totalRecords: totalRecords,
+      syncedRecords: syncedRecords,
+      lastSyncAttempt: DateTime.now(),
+    );
+    notifyListeners();
+  }
+  
+  void _showOfflineAttendanceMessage() {
+    // This would be implemented with a global key-based SnackBar in a real app
+    debugPrint('Attendance saved offline. Will sync when connection is available.');
+    
+    if (navigatorKey.currentContext != null) {
+      ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+        const SnackBar(
+          content: Text('Attendance saved offline. Will sync when online.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+  
+  @override
+  void dispose() {
+    _scanSubscription?.cancel();
+    coreServices.stopBleScan();
+    _syncTimer?.cancel();
+    super.dispose();
+  }
+}

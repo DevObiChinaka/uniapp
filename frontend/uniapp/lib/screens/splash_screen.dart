@@ -1,172 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:provider/provider.dart';
-import 'package:uniapp/screens/login_screen.dart';
-import 'package:uniapp/screens/register_screen.dart';
-import 'package:uniapp/screens/edit_profile_screen.dart';
-import 'package:uniapp/services/biometric_service.dart';
-import 'package:uniapp/screens/app_constants.dart';
-import 'package:uniapp/screens/app_provider.dart';
-import 'package:uniapp/services/core_services.dart';
-import 'package:uniapp/services/face_service.dart';
-import 'package:uniapp/screens/student_dashboard.dart';
-import 'package:uniapp/screens/lecturer_dashboard.dart';
-import 'package:uniapp/screens/security_dashboard.dart';
-import 'package:uniapp/screens/admin_dashboard.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  final coreServices = CoreServices();
-  await coreServices.initialize();
-  final faceService = FaceService();
-  await faceService.initialize();
-  await _setupFCM(coreServices);
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create:
-              (context) => AppProvider(
-                coreServices: coreServices,
-                faceService: faceService,
-              ),
-        ),
-      ],
-      child: const UniApp(),
-    ),
-  );
-}
-
-Future<void> _setupFCM(CoreServices coreServices) async {
-  final messaging = FirebaseMessaging.instance;
-
-  // Request notification permissions
-  final settings = await messaging.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-    provisional: true,
-  );
-
-  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    // Get FCM token and register with backend
-    final token = await messaging.getToken();
-    if (token != null) {
-      await coreServices.registerFcmToken(token);
-    }
-
-    // Foreground message handler
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      coreServices.handlePushNotification(message);
-    });
-  }
-
-  // Background message handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-}
-
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  final coreServices = CoreServices();
-  await coreServices.initialize();
-  coreServices.handlePushNotification(message);
-}
-
-class UniApp extends StatelessWidget {
-  const UniApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Smart Attendance & Leave Management',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: Colors.white,
-        scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'Roboto',
-        colorScheme: ColorScheme.fromSwatch().copyWith(
-          primary: Color(0xFF6D5DF6),
-          secondary: Color(0xFFB07DFB),
-          background: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF6D5DF6),
-          elevation: 0,
-          systemOverlayStyle: SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.dark,
-          ),
-        ),
-      ),
-      initialRoute: AppRoutes.splash,
-      routes: {
-        AppRoutes.splash: (context) => const SplashScreen(),
-        AppRoutes.login: (context) => const LoginScreen(),
-        AppRoutes.register: (context) => const RegisterScreen(),
-        AppRoutes.biometricLogin: (context) => const BiometricLoginScreen(),
-        AppRoutes.editProfile: (context) => const EditProfileScreen(),
-      },
-      onGenerateRoute: (settings) {
-        // Handle dashboard routes with arguments
-        if (settings.name == AppRoutes.studentDashboard) {
-          final args = settings.arguments as Map<String, dynamic>?;
-          return MaterialPageRoute(
-            builder:
-                (_) => StudentDashboard(
-                  firstName: args?['firstName'] ?? '',
-                  lastName: args?['lastName'] ?? '',
-                  universityId: args?['universityId'] ?? '',
-                  token: args?['token'] ?? '',
-                  role: args?['role'] ?? AppConstants.studentRole,
-                ),
-          );
-        } else if (settings.name == AppRoutes.lecturerDashboard) {
-          final args = settings.arguments as Map<String, dynamic>?;
-          return MaterialPageRoute(
-            builder:
-                (_) => LecturerDashboard(
-                  firstName: args?['firstName'] ?? '',
-                  lastName: args?['lastName'] ?? '',
-                  token: args?['token'] ?? '',
-                  role: args?['role'] ?? AppConstants.lecturerRole,
-                ),
-          );
-        } else if (settings.name == AppRoutes.securityDashboard) {
-          final args = settings.arguments as Map<String, dynamic>?;
-          return MaterialPageRoute(
-            builder:
-                (_) => SecurityDashboard(
-                  token: args?['token'] ?? '',
-                  role: args?['role'] ?? AppConstants.securityRole,
-                ),
-          );
-        } else if (settings.name == AppRoutes.adminDashboard) {
-          final args = settings.arguments as Map<String, dynamic>?;
-          return MaterialPageRoute(
-            builder:
-                (_) => AdminDashboard(
-                  firstName: args?['firstName'] ?? '',
-                  lastName: args?['lastName'] ?? '',
-                  universityId: args?['universityId'] ?? '',
-                  token: args?['token'] ?? '',
-                  role: args?['role'] ?? AppConstants.adminRole,
-                ),
-          );
-        }
-
-        return null;
-      },
-    );
-  }
-}
+import 'package:http/http.dart' as http;
+import '../routes/app_routes.dart' as routes;
+import '../services/biometric_service.dart';
+import 'app_constants.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -188,9 +28,9 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     if (biometricEnabled) {
-      Navigator.pushReplacementNamed(context, AppRoutes.biometricLogin);
+      context.go(routes.AppRoutes.biometricLogin);
     } else {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      context.go(routes.AppRoutes.login);
     }
   }
 
@@ -378,7 +218,7 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
                 const SizedBox(height: 20),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushReplacementNamed(context, AppRoutes.login);
+                    context.go(routes.AppRoutes.login);
                   },
                   child: const Text('Use Password Instead'),
                 ),
@@ -433,35 +273,19 @@ Future<void> checkBiometricLogin(BuildContext context) async {
 
           switch (role) {
             case AppConstants.studentRole:
-              Navigator.pushReplacementNamed(
-                context,
-                AppRoutes.studentDashboard,
-                arguments: args,
-              );
+              context.go(routes.AppRoutes.studentDashboard, extra: args);
               break;
             case AppConstants.lecturerRole:
-              Navigator.pushReplacementNamed(
-                context,
-                AppRoutes.lecturerDashboard,
-                arguments: args,
-              );
+              context.go(routes.AppRoutes.lecturerDashboard, extra: args);
               break;
             case AppConstants.securityRole:
-              Navigator.pushReplacementNamed(
-                context,
-                AppRoutes.securityDashboard,
-                arguments: args,
-              );
+              context.go(routes.AppRoutes.securityDashboard, extra: args);
               break;
             case AppConstants.adminRole:
-              Navigator.pushReplacementNamed(
-                context,
-                AppRoutes.adminDashboard,
-                arguments: args,
-              );
+              context.go(routes.AppRoutes.adminDashboard, extra: args);
               break;
             default:
-              Navigator.pushReplacementNamed(context, AppRoutes.login);
+              context.go(routes.AppRoutes.login);
           }
         } else {
           throw Exception('Biometric login failed: ${response.body}');
@@ -475,17 +299,4 @@ Future<void> checkBiometricLogin(BuildContext context) async {
   } else {
     throw Exception('Biometrics not enabled');
   }
-}
-
-// AppRoutes class should be defined if not already
-class AppRoutes {
-  static const String splash = '/';
-  static const String login = '/login';
-  static const String register = '/register';
-  static const String biometricLogin = '/biometric-login';
-  static const String editProfile = '/edit-profile';
-  static const String studentDashboard = '/student-dashboard';
-  static const String lecturerDashboard = '/lecturer-dashboard';
-  static const String securityDashboard = '/security-dashboard';
-  static const String adminDashboard = '/admin-dashboard';
 }

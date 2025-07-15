@@ -6,8 +6,8 @@ from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False)
-    program = serializers.CharField(required=False, allow_blank=True)
+    campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False, allow_null=True)
+    program = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = User
@@ -15,6 +15,23 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'university_id', 'username', 'first_name', 'last_name', 'email',
             'password', 'role', 'campus_tag', 'program'
         ]
+
+    def validate(self, attrs):
+        role = attrs.get('role')
+        
+        # Role-based validation
+        if role == 'admin':
+            # Admin users don't need campus_tag or program
+            if 'campus_tag' not in attrs or attrs['campus_tag'] is None:
+                attrs['campus_tag'] = 'on-campus'  # Set default for admin
+            if 'program' not in attrs or attrs['program'] is None:
+                attrs['program'] = None  # Allow None for admin
+        elif role == 'student':
+            # Students should have campus_tag and program
+            if not attrs.get('campus_tag'):
+                attrs['campus_tag'] = 'on-campus'  # Default
+        
+        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop('password')

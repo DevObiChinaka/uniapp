@@ -6,14 +6,13 @@ import 'package:uniapp/screens/app_constants.dart';
 import 'package:uniapp/screens/face_verification_screen.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ExitScanScreen extends StatefulWidget {
   final String universityId;
   final bool hasApprovedLeave;
-  
+
   const ExitScanScreen({
-    Key? key, 
+    Key? key,
     required this.universityId,
     this.hasApprovedLeave = false,
   }) : super(key: key);
@@ -27,18 +26,18 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
     formats: [BarcodeFormat.qrCode],
     detectionSpeed: DetectionSpeed.normal,
   );
-  
+
   bool _isProcessing = false;
   String _status = 'Ready to scan security QR code';
   DateTime? _lastScan;
   final _throttleDuration = const Duration(seconds: 3);
-  
+
   @override
   void dispose() {
     _scannerController.dispose();
     super.dispose();
   }
-  
+
   Future<void> _processQrCode(String data) async {
     // Check for throttling
     final now = DateTime.now();
@@ -47,25 +46,24 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
       return;
     }
     _lastScan = now;
-    
+
     if (_isProcessing) return;
-    
+
     try {
       setState(() {
         _isProcessing = true;
         _status = 'Processing exit QR code...';
       });
-      
+
       // Validate QR format and signature
       final qrData = _validateQrCode(data);
       if (qrData == null) {
         _showMessage('Invalid security QR code');
         return;
       }
-      
+
       // Process the exit data from QR
       await _processExitRequest(qrData['payload']);
-      
     } catch (e) {
       _showMessage('Error processing QR code: $e');
     } finally {
@@ -74,183 +72,190 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
       });
     }
   }
-  
+
   Map<String, dynamic>? _validateQrCode(String data) {
     try {
       // Parse QR data
       final qrData = jsonDecode(data);
-      
+
       // Check if required fields exist
-      if (!qrData.containsKey('payload') || 
-          !qrData.containsKey('signature') || 
+      if (!qrData.containsKey('payload') ||
+          !qrData.containsKey('signature') ||
           !qrData.containsKey('timestamp') ||
           !qrData.containsKey('type')) {
         return null;
       }
-      
+
       // Check if this is an exit QR code
       if (qrData['type'] != 'exit') {
         _showMessage('Invalid QR code type. This is not an exit QR code.');
         return null;
       }
-      
+
       // Validate timestamp (TTL check)
-      final timestamp = DateTime.fromMillisecondsSinceEpoch(qrData['timestamp']);
+      final timestamp = DateTime.fromMillisecondsSinceEpoch(
+        qrData['timestamp'],
+      );
       final ttl = Duration(seconds: AppConstants.qrTtlSeconds);
       if (DateTime.now().difference(timestamp) > ttl) {
-        _showMessage('QR code has expired. Please request a new one from security personnel.');
+        _showMessage(
+          'QR code has expired. Please request a new one from security personnel.',
+        );
         return null;
       }
-      
+
       // Validate signature
       final payload = qrData['payload'];
       final signature = qrData['signature'];
       final secret = AppConstants.hmacSecretKey;
-      
-      final calculatedSignature = _generateSignature(payload, timestamp.millisecondsSinceEpoch.toString(), secret);
-      
+
+      final calculatedSignature = _generateSignature(
+        payload,
+        timestamp.millisecondsSinceEpoch.toString(),
+        secret,
+      );
+
       if (calculatedSignature != signature) {
         return null;
       }
-      
+
       return qrData;
     } catch (e) {
       print('QR validation error: $e');
       return null;
     }
   }
-  
+
   String _generateSignature(String payload, String timestamp, String secret) {
     final dataToSign = payload + timestamp;
     final hmac = Hmac(sha256, utf8.encode(secret));
     final digest = hmac.convert(utf8.encode(dataToSign));
     return digest.toString();
   }
-  
+
   Future<void> _processExitRequest(String exitDataStr) async {
     try {
       final exitData = jsonDecode(exitDataStr);
-      
+
       if (!exitData.containsKey('gate_id')) {
         _showMessage('Invalid exit data format');
         return;
       }
-      
+
       final gateId = exitData['gate_id'];
-      
+
       // Navigate to face verification for exit
       if (!mounted) return;
-      
-      final result = await Navigator.push(
+
+      final result = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
-          builder: (context) => FaceVerificationScreen(
-            verificationPurpose: 'exit',
-            universityId: widget.universityId,
-            gateId: gateId,
-            hasApprovedLeave: widget.hasApprovedLeave,
-          ),
+          builder:
+              (context) => FaceVerificationScreen(
+                title: 'Exit Verification',
+                subtitle: 'Verify your identity to exit campus',
+                onVerificationComplete: (
+                  bool isVerified,
+                  String? faceId,
+                ) async {
+                  if (isVerified && faceId != null) {
+                    await _processExit(gateId, faceId);
+                    return true;
+                  }
+                  return false;
+                },
+              ),
         ),
       );
-      
+
       if (result == true) {
-        _showExitSuccess();
+        _showSuccessMessage('Exit authorized successfully!');
+        Navigator.pop(context, true);
+      } else {
+        _showMessage('Exit verification failed. Please try again.');
       }
     } catch (e) {
       _showMessage('Error processing exit data: $e');
     }
   }
-  
-  void _showExitSuccess() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green),
-            SizedBox(width: 8),
-            Text('Exit Approved'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Your exit request has been approved.'),
-            SizedBox(height: 12),
-            Text(
-              'Please show this screen to security personnel.',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
-            Icon(Icons.exit_to_app, size: 48, color: Colors.green),
-            SizedBox(height: 8),
-            Text(
-              '${widget.hasApprovedLeave ? "Approved Leave" : "Emergency Exit"}',
-              style: TextStyle(
-                color: widget.hasApprovedLeave ? Colors.blue : Colors.orange,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            child: Text('OK'),
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context, true); // Return to previous screen
-            },
-          ),
-        ],
+
+  Future<void> _processExit(String gateId, String faceId) async {
+    try {
+      final provider = Provider.of<AppProvider>(context, listen: false);
+
+      // Create exit request data
+      final exitQrData =
+          'EXIT:${widget.universityId}:$gateId:${DateTime.now().millisecondsSinceEpoch}';
+
+      // Process gate exit using AppProvider
+      await provider.processGateExit(exitQrData);
+
+      // Check the result
+      final exitResult = provider.lastExitResult;
+
+      if (exitResult != null && exitResult.allowed) {
+        _showSuccessMessage('Exit approved: ${exitResult.message}');
+      } else {
+        throw Exception(exitResult?.message ?? 'Exit denied');
+      }
+    } catch (e) {
+      throw Exception('Failed to process exit: $e');
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 3),
       ),
     );
   }
 
-  void _showMessage(String message) {
-    if (!mounted) return;
-    
-    setState(() {
-      _status = message;
-    });
-    
+  void _showSuccessMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message))
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 3),
+      ),
     );
   }
-  
+
   void _showEmergencyExitDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Request Emergency Exit'),
-          ],
-        ),
-        content: Text(
-          'Do you need to leave campus due to an emergency? If yes, you will need to provide details and undergo verification.'
-        ),
-        actions: [
-          TextButton(
-            child: Text('No'),
-            onPressed: () => Navigator.pop(context),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.warning_amber, color: Colors.orange),
+                SizedBox(width: 8),
+                Text('Emergency Exit'),
+              ],
             ),
-            child: Text('Yes, Emergency Exit'),
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/emergency_exit');
-            },
+            content: Text(
+              'Emergency exits require additional verification. Continue to proceed with emergency exit process.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Continue with emergency exit verification
+                  _showMessage(
+                    'Please scan security QR code for emergency exit authorization',
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                child: Text('Continue'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -290,7 +295,7 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
               ],
             ),
           ),
-          
+
           // Leave status bar
           if (widget.hasApprovedLeave)
             Container(
@@ -309,7 +314,7 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                 ],
               ),
             ),
-          
+
           // Main content
           Expanded(
             child: Stack(
@@ -318,7 +323,8 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                   controller: _scannerController,
                   onDetect: (capture) {
                     final barcodes = capture.barcodes;
-                    if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                    if (barcodes.isNotEmpty &&
+                        barcodes.first.rawValue != null) {
                       final code = barcodes.first.rawValue!;
                       _processQrCode(code);
                     }
@@ -335,7 +341,10 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                       height: 250,
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: widget.hasApprovedLeave ? Colors.green : Colors.white,
+                          color:
+                              widget.hasApprovedLeave
+                                  ? Colors.green
+                                  : Colors.white,
                           width: 2,
                         ),
                         borderRadius: BorderRadius.circular(12),
@@ -345,7 +354,10 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                         children: [
                           Icon(
                             Icons.qr_code_scanner,
-                            color: widget.hasApprovedLeave ? Colors.green : Colors.white,
+                            color:
+                                widget.hasApprovedLeave
+                                    ? Colors.green
+                                    : Colors.white,
                             size: 32,
                           ),
                           SizedBox(height: 8),
@@ -353,7 +365,10 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                             'Scan Security QR Code\nto Exit Campus',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: widget.hasApprovedLeave ? Colors.green : Colors.white,
+                              color:
+                                  widget.hasApprovedLeave
+                                      ? Colors.green
+                                      : Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -365,7 +380,7 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
               ],
             ),
           ),
-          
+
           // Instructions
           Container(
             color: Colors.grey.shade100,
@@ -384,7 +399,9 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                     Text('1.'),
                     SizedBox(width: 8),
                     Expanded(
-                      child: Text('Scan the QR code displayed by security personnel'),
+                      child: Text(
+                        'Scan the QR code displayed by security personnel',
+                      ),
                     ),
                   ],
                 ),
@@ -395,7 +412,9 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                     Text('2.'),
                     SizedBox(width: 8),
                     Expanded(
-                      child: Text('Verify your identity with face verification'),
+                      child: Text(
+                        'Verify your identity with face verification',
+                      ),
                     ),
                   ],
                 ),
@@ -406,9 +425,10 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
                     Text('3.'),
                     SizedBox(width: 8),
                     Expanded(
-                      child: Text(widget.hasApprovedLeave
-                          ? 'Exit will be approved based on your leave request'
-                          : 'Submit emergency exit request if needed'
+                      child: Text(
+                        widget.hasApprovedLeave
+                            ? 'Exit will be approved based on your leave request'
+                            : 'Submit emergency exit request if needed',
                       ),
                     ),
                   ],
@@ -416,7 +436,7 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
               ],
             ),
           ),
-          
+
           // No leave request notice
           if (!widget.hasApprovedLeave)
             Container(
@@ -438,21 +458,24 @@ class _ExitScanScreenState extends State<ExitScanScreen> {
         ],
       ),
       // Bottom button for emergency
-      bottomNavigationBar: !widget.hasApprovedLeave ? BottomAppBar(
-        height: 60,
-        padding: EdgeInsets.zero,
-        child: ElevatedButton.icon(
-          icon: Icon(Icons.warning),
-          label: Text('Request Emergency Exit'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () {
-            Navigator.pushNamed(context, '/emergency_exit');
-          },
-        ),
-      ) : null,
+      bottomNavigationBar:
+          !widget.hasApprovedLeave
+              ? BottomAppBar(
+                height: 60,
+                padding: EdgeInsets.zero,
+                child: ElevatedButton.icon(
+                  icon: Icon(Icons.warning),
+                  label: Text('Request Emergency Exit'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/emergency_exit');
+                  },
+                ),
+              )
+              : null,
     );
   }
 }

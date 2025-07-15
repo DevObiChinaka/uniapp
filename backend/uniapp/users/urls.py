@@ -11,7 +11,12 @@ router.register(r'sessions', views.SessionViewSet, basename='session')
 router.register(r'attendance', views.AttendanceViewSet, basename='attendance')
 router.register(r'leave', views.LeaveRequestViewSet, basename='leave')
 router.register(r'logs', views.SystemLogViewSet, basename='log')
-router.register(r'exits', views.ExitViewSet, basename='exit')  # Fixed: use ExitViewSet
+router.register(r'exits', views.ExitViewSet, basename='exit')
+
+# Admin routes
+router.register(r'admin/students', views.AdminStudentViewSet, basename='admin-students')
+router.register(r'admin/leave-requests', views.AdminLeaveViewSet, basename='admin-leave')
+router.register(r'admin/system-logs', views.AdminSystemLogViewSet, basename='admin-logs')
 
 urlpatterns = [
     path('register/', RegisterUserView.as_view(), name='register'),
@@ -32,6 +37,13 @@ urlpatterns = [
     path('users/<int:pk>/update-tag/', views.UserViewSet.as_view({'patch': 'update_tag'}), name='user-update-tag'),
     path('fcm/register/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm-register'),
     path('fcm/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm'),
+    
+    # Admin-specific endpoints
+    path('admin/students/', views.AdminStudentViewSet.as_view({'get': 'list'}), name='admin-students-list'),
+    path('admin/students/<int:pk>/campus-tag/', views.AdminStudentViewSet.as_view({'patch': 'campus_tag'}), name='admin-student-campus-tag'),
+    path('admin/leave-requests/', views.AdminLeaveViewSet.as_view({'get': 'list'}), name='admin-leave-requests-list'),
+    path('admin/leave-requests/<int:pk>/status/', views.AdminLeaveViewSet.as_view({'patch': 'status'}), name='admin-leave-status'),
+    path('admin/system-logs/', views.AdminSystemLogViewSet.as_view({'get': 'list'}), name='admin-system-logs-list'),
     
     # Session management
     path('sessions/<int:pk>/start/', views.SessionActionView.as_view({'post': 'start'}), name='session-start'),

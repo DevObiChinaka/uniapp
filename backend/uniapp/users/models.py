@@ -49,7 +49,7 @@ class User(AbstractUser):
     fingerprint_hash = models.TextField(null=True, blank=True)
     face_hash = models.TextField(null=True, blank=True)
     face_id = models.CharField(max_length=100, blank=True, null=True)
-    campus_tag = models.CharField(max_length=20, choices=(('on-campus', 'On Campus'), ('off-campus', 'Off Campus')), default='on-campus')
+    campus_tag = models.CharField(max_length=20, choices=(('on-campus', 'On Campus'), ('off-campus', 'Off Campus')), default='on-campus', null=True, blank=True)
     program = models.CharField(max_length=100, blank=True, null=True)
     fcm_token = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
