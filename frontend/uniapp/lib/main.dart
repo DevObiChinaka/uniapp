@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:uniapp/routes/app_router.dart';
 import 'package:uniapp/screens/app_provider.dart';
@@ -18,14 +18,16 @@ void main() async {
   // Initialize Firebase
   await Firebase.initializeApp();
 
-  // Initialize core services (lightweight initialization only)
+  // Initialize core services
   final coreServices = CoreServices();
-  
-  // Initialize Face Service (lightweight initialization only)
-  final faceService = FaceService();
+  await coreServices.initialize();
 
-  // Defer heavy initialization to after the app starts
-  _deferHeavyInitialization(coreServices, faceService);
+  // Initialize Face Service
+  final faceService = FaceService();
+  await faceService.initialize();
+
+  // Setup FCM
+  await _setupFCM(coreServices);
 
   runApp(
     MultiProvider(
@@ -43,22 +45,39 @@ void main() async {
   );
 }
 
-// Perform heavy initialization in the background after app startup
-Future<void> _deferHeavyInitialization(CoreServices coreServices, FaceService faceService) async {
-  // Use a microtask to defer execution until after the current frame
-  Future.microtask(() async {
-    try {
-      // Initialize services in the background
-      await Future.wait([
-        coreServices.initialize(),
-        // Don't initialize face service until it's actually needed
-        // faceService.initialize(),
-      ]);
-      debugPrint('Background initialization completed');
-    } catch (e) {
-      debugPrint('Background initialization error: $e');
+Future<void> _setupFCM(CoreServices coreServices) async {
+  final messaging = FirebaseMessaging.instance;
+
+  // Request notification permissions
+  final settings = await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+    provisional: true,
+  );
+
+  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+    // Get FCM token and register with backend
+    final token = await messaging.getToken();
+    if (token != null) {
+      await coreServices.registerFcmToken(token);
     }
-  });
+
+    // Foreground message handler
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      coreServices.handlePushNotification(message);
+    });
+  }
+
+  // Background message handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+}
+
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  final coreServices = CoreServices();
+  await coreServices.initialize();
+  coreServices.handlePushNotification(message);
 }
 
 class UniApp extends StatelessWidget {
@@ -66,9 +85,9 @@ class UniApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Defer AppProvider initialization to avoid blocking the UI
+    // Initialize app provider
     final appProvider = Provider.of<AppProvider>(context, listen: false);
-    Future.microtask(() => appProvider.initialize());
+    appProvider.initialize();
 
     return AppLifecycleHandler(
       child: MaterialApp.router(

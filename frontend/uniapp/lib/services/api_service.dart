@@ -1,6 +1,7 @@
 // lib/services/api_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uniapp/screens/app_constants.dart';
 
 class ApiService {
@@ -22,6 +23,24 @@ class ApiService {
       url,
       body: jsonEncode(data),
       headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  static Future<http.Response> postAuthenticated(
+    String endpoint,
+    Map<String, dynamic> data,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final url = Uri.parse(baseUrl + _ensureTrailingSlash(endpoint));
+    return await http.post(
+      url,
+      body: jsonEncode(data),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
     );
   }
 

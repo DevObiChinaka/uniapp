@@ -6,8 +6,8 @@ from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False, allow_null=True)
-    program = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False)
+    program = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -15,23 +15,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'university_id', 'username', 'first_name', 'last_name', 'email',
             'password', 'role', 'campus_tag', 'program'
         ]
-
-    def validate(self, attrs):
-        role = attrs.get('role')
-        
-        # Role-based validation
-        if role == 'admin':
-            # Admin users don't need campus_tag or program
-            if 'campus_tag' not in attrs or attrs['campus_tag'] is None:
-                attrs['campus_tag'] = 'on-campus'  # Set default for admin
-            if 'program' not in attrs or attrs['program'] is None:
-                attrs['program'] = None  # Allow None for admin
-        elif role == 'student':
-            # Students should have campus_tag and program
-            if not attrs.get('campus_tag'):
-                attrs['campus_tag'] = 'on-campus'  # Default
-        
-        return attrs
 
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -74,9 +57,30 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
+    face_id = serializers.SerializerMethodField()
+    is_on_campus = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ['id', 'username', 'role', 'face_id', 'campus_tag', 'program']
+        fields = ['id', 'name', 'role', 'face_id', 'program', 'campus_tag', 'is_on_campus']
+    
+    def get_id(self, obj):
+        """Convert id to string for frontend compatibility"""
+        return str(obj.id)
+    
+    def get_name(self, obj):
+        """Combine first_name and last_name for the frontend"""
+        return f"{obj.first_name} {obj.last_name}".strip()
+    
+    def get_face_id(self, obj):
+        """Map face_hash to face_id for frontend compatibility"""
+        return obj.face_hash
+    
+    def get_is_on_campus(self, obj):
+        """Convert campus_tag to boolean for frontend compatibility"""
+        return obj.campus_tag == 'on-campus' if obj.campus_tag else False
 
 class SessionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -89,9 +93,37 @@ class AttendanceSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField()
+    user_id = serializers.SerializerMethodField()
+    reviewer_id = serializers.SerializerMethodField()
+    
     class Meta:
         model = LeaveRequest
-        fields = '__all__'
+        fields = ['id', 'user_id', 'start_date', 'end_date', 'reason', 'status', 'submitted_at', 'reviewed_at', 'reviewer_id', 'review_comments']
+    
+    def get_id(self, obj):
+        return str(obj.id)
+    
+    def get_user_id(self, obj):
+        return str(obj.user.id) if obj.user else None
+    
+    def get_reviewer_id(self, obj):
+        return str(obj.reviewer.id) if obj.reviewer else None
+
+class SystemLogSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField()
+    user_id = serializers.SerializerMethodField()
+    type = serializers.CharField(source='log_type')
+    
+    class Meta:
+        model = SystemLog
+        fields = ['id', 'type', 'event', 'timestamp', 'user_id', 'details']
+    
+    def get_id(self, obj):
+        return str(obj.id)
+    
+    def get_user_id(self, obj):
+        return str(obj.user.id) if obj.user else None
 
 class ExitLogSerializer(serializers.ModelSerializer):
     class Meta:

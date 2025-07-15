@@ -72,11 +72,8 @@ class CoreServices {
     // Request permissions
     await _fcm.requestPermission();
 
-    // Get token and register
-    final fcmToken = await _fcm.getToken();
-    if (fcmToken != null) {
-      await registerFcmToken(fcmToken);
-    }
+    // Don't register token immediately - wait until user logs in
+    // The token will be registered in the login flow
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(handlePushNotification);
@@ -221,12 +218,12 @@ class CoreServices {
       final response = await _dio.post(
         AppConstants.attendanceEndpoint,
         data: {
-          'user': userId,              // ✅ Fixed: user instead of user_id
-          'session': sessionId,        // ✅ Fixed: session instead of session_id
+          'user': userId, // ✅ Fixed: user instead of user_id
+          'session': sessionId, // ✅ Fixed: session instead of session_id
           'face_verified': faceVerified,
           'ble_device_id': bleDeviceId,
           'ble_rssi': bleRssi,
-          'method': 'ble',            // ✅ Added: method field
+          'method': 'ble', // ✅ Added: method field
         },
       );
 
@@ -317,10 +314,10 @@ class CoreServices {
   }) async {
     try {
       final response = await _dio.post(
-        '${AppConstants.exitEndpoint}process/',  // ✅ Fixed: correct endpoint
+        '${AppConstants.exitEndpoint}process/', // ✅ Fixed: correct endpoint
         data: {
-          'qr_data': qrData,         // ✅ OK: matches backend
-          'face_image': faceId,      // ✅ Fixed: face_image instead of face_id
+          'qr_data': qrData, // ✅ OK: matches backend
+          'face_image': faceId, // ✅ Fixed: face_image instead of face_id
           // Note: user comes from authentication, no need to send user_id
         },
       );
@@ -387,10 +384,10 @@ class CoreServices {
   }) async {
     try {
       final response = await _dio.post(
-        '${AppConstants.attendanceEndpoint}manual/',  // ✅ Fixed: proper endpoint format
+        '${AppConstants.attendanceEndpoint}manual/', // ✅ Fixed: proper endpoint format
         data: {
           'student_ids': studentIds,
-          'session': sessionId,          // ✅ Fixed: session instead of session_id
+          'session': sessionId, // ✅ Fixed: session instead of session_id
           'method': 'manual',
         },
       );
@@ -419,9 +416,20 @@ class CoreServices {
   Future<List<User>> fetchAllStudents() async {
     try {
       final response = await _dio.get('/admin/students/');
+      debugPrint('Students API response: ${response.statusCode}');
+      debugPrint('Students API data: ${response.data}');
+      
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data['data'];
-        return data.map((json) => User.fromJson(json)).toList();
+        debugPrint('Students data count: ${data.length}');
+        
+        final students = data.map((json) {
+          debugPrint('Parsing student: $json');
+          return User.fromJson(json);
+        }).toList();
+        
+        debugPrint('Parsed ${students.length} students successfully');
+        return students;
       }
       throw Exception('Failed to fetch students');
     } catch (e) {
@@ -661,8 +669,8 @@ class CoreServices {
       final response = await _dio.post(
         AppConstants.attendanceEndpoint,
         data: {
-          'user': userId,              // ✅ Fixed: user instead of user_id
-          'session': sessionId,        // ✅ Fixed: session instead of session_id
+          'user': userId, // ✅ Fixed: user instead of user_id
+          'session': sessionId, // ✅ Fixed: session instead of session_id
           'face_verified': faceVerified,
           'method': 'qr',
         },
@@ -687,12 +695,12 @@ class CoreServices {
         'reason': reason,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
-      
+
       final response = await _dio.post(
-        '${AppConstants.exitEndpoint}process/',  // ✅ Fixed: use existing endpoint
+        '${AppConstants.exitEndpoint}process/', // ✅ Fixed: use existing endpoint
         data: {
-          'qr_data': emergencyQrData,            // ✅ Fixed: proper QR data format
-          'face_image': 'emergency_bypass',      // ✅ Fixed: field name
+          'qr_data': emergencyQrData, // ✅ Fixed: proper QR data format
+          'face_image': 'emergency_bypass', // ✅ Fixed: field name
           // Note: Emergency flag embedded in QR data
         },
       );

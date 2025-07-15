@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api_service.dart';
 
 class AuthService {
@@ -38,6 +39,9 @@ class AuthService {
 
       await prefs.setBool('has_logged_in', true); // for biometric tracking
 
+      // Register FCM token after successful login
+      await _registerFcmToken();
+
       return {
         'success': true,
         'data': {
@@ -45,14 +49,34 @@ class AuthService {
           'last_name': user['last_name'],
           'university_id': user['university_id'] ?? '',
           'username': user['username'] ?? '',
-          'access': access,     // ✅ Correct
-          'refresh': refresh, 
+          'access': access, // ✅ Correct
+          'refresh': refresh,
           'role': user['role'],
-        }
+        },
       };
-
     } else {
       return {'success': false, 'message': data['detail'] ?? 'Login failed'};
+    }
+  }
+
+  Future<void> _registerFcmToken() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final fcmToken = await messaging.getToken();
+
+      if (fcmToken != null) {
+        final response = await ApiService.postAuthenticated('/fcm/', {
+          'token': fcmToken,
+        });
+
+        if (response.statusCode == 200) {
+          print('FCM token registered successfully');
+        } else {
+          print('FCM token registration failed: ${response.statusCode}');
+        }
+      }
+    } catch (e) {
+      print('Error registering FCM token: $e');
     }
   }
 }

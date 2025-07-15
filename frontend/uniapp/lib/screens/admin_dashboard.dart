@@ -171,6 +171,30 @@ class _AdminDashboardState extends State<AdminDashboard>
       builder: (context, provider, _) {
         if (provider.isLoading) return LoadingSpinner();
 
+        // Debug: Print the students count
+        debugPrint('Students count: ${provider.allStudents.length}');
+        
+        if (provider.allStudents.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No students found',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Students will appear here when they register',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          );
+        }
+
         return ListView.builder(
           itemCount: provider.allStudents.length,
           itemBuilder: (context, index) {
@@ -248,6 +272,29 @@ class _AdminDashboardState extends State<AdminDashboard>
     return Consumer<AppProvider>(
       builder: (context, provider, _) {
         if (provider.isLoading) return LoadingSpinner();
+
+        debugPrint('Leave requests count: ${provider.allLeaveRequests.length}');
+        
+        if (provider.allLeaveRequests.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.event_busy, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No leave requests found',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Leave requests will appear here when submitted',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          );
+        }
 
         return ListView.builder(
           itemCount: provider.allLeaveRequests.length,
@@ -387,6 +434,29 @@ class _AdminDashboardState extends State<AdminDashboard>
     return Consumer<AppProvider>(
       builder: (context, provider, _) {
         if (provider.isLoading) return LoadingSpinner();
+
+        debugPrint('System logs count: ${provider.systemLogs.length}');
+        
+        if (provider.systemLogs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.list_alt, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No system logs found',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'System activities will be logged here',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          );
+        }
 
         return ListView.builder(
           itemCount: provider.systemLogs.length,
