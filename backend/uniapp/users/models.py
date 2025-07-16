@@ -46,6 +46,7 @@ class User(AbstractUser):
     )
     university_id = models.CharField(max_length=20, unique=True, null=True, blank=True)
     profile_image = models.ImageField(upload_to='profiles/', null=True, blank=True)
+    profile_picture_url = models.URLField(null=True, blank=True)  # For Firebase URLs
     fingerprint_hash = models.TextField(null=True, blank=True)
     face_hash = models.TextField(null=True, blank=True)
     face_id = models.CharField(max_length=100, blank=True, null=True)

@@ -64,7 +64,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'name', 'role', 'face_id', 'program', 'campus_tag', 'is_on_campus']
+        fields = ['id', 'name', 'role', 'face_id', 'program', 'campus_tag', 'is_on_campus', 'university_id']
     
     def get_id(self, obj):
         """Convert id to string for frontend compatibility"""
@@ -96,10 +96,12 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField()
     user_id = serializers.SerializerMethodField()
     reviewer_id = serializers.SerializerMethodField()
+    student_name = serializers.SerializerMethodField()
+    student_university_id = serializers.SerializerMethodField()
     
     class Meta:
         model = LeaveRequest
-        fields = ['id', 'user_id', 'start_date', 'end_date', 'reason', 'status', 'submitted_at', 'reviewed_at', 'reviewer_id', 'review_comments']
+        fields = ['id', 'user_id', 'start_date', 'end_date', 'reason', 'status', 'submitted_at', 'reviewed_at', 'reviewer_id', 'review_comments', 'student_name', 'student_university_id']
     
     def get_id(self, obj):
         return str(obj.id)
@@ -109,30 +111,44 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     
     def get_reviewer_id(self, obj):
         return str(obj.reviewer.id) if obj.reviewer else None
+    
+    def get_student_name(self, obj):
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return "Unknown Student"
+    
+    def get_student_university_id(self, obj):
+        return obj.user.university_id if obj.user else "N/A"
 
 class SystemLogSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField()
     user_id = serializers.SerializerMethodField()
+    user_name = serializers.SerializerMethodField()
     type = serializers.CharField(source='log_type')
+    time_ago = serializers.SerializerMethodField()
     
     class Meta:
         model = SystemLog
-        fields = ['id', 'type', 'event', 'timestamp', 'user_id', 'details']
+        fields = ['id', 'type', 'event', 'timestamp', 'user_id', 'user_name', 'details', 'time_ago']
     
     def get_id(self, obj):
         return str(obj.id)
     
     def get_user_id(self, obj):
         return str(obj.user.id) if obj.user else None
+    
+    def get_user_name(self, obj):
+        if obj.user:
+            return f"{obj.user.first_name} {obj.user.last_name}".strip() or obj.user.username or str(obj.user.id)
+        return "System"
+    
+    def get_time_ago(self, obj):
+        from django.utils.timesince import timesince
+        return f"{timesince(obj.timestamp)} ago"
 
 class ExitLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExitLog
-        fields = '__all__'
-
-class SystemLogSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SystemLog
         fields = '__all__'
 
 class FCMTokenSerializer(serializers.ModelSerializer):

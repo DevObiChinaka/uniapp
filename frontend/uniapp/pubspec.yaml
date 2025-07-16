@@ -36,6 +36,7 @@ dependencies:
   # Firebase
   firebase_core: ^2.24.0
   firebase_messaging: ^14.7.0
+  firebase_storage: ^11.6.0
 
   # QR & Scanner
   qr_flutter: ^4.0.0
@@ -48,6 +49,7 @@ dependencies:
   # Camera & Image
   camera: ^0.10.6
   image: ^4.0.17
+  image_picker: ^1.0.7
 
   # Biometric & Face Detection
   google_mlkit_face_detection: ^0.11.0

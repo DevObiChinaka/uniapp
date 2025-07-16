@@ -1075,10 +1075,23 @@ class AppProvider with ChangeNotifier {
     }
   }
 
+  Future<void> updateUserProfile(Map<String, dynamic> profileData) async {
+    _setLoading(true, 'Updating profile...');
+    try {
+      await coreServices.updateProfile(profileData);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating profile: $e');
+      throw e;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<void> updateCampusTag(String studentId, bool isOnCampus) async {
     _setLoading(true, 'Updating campus tag...');
     try {
-      await coreServices.updateStudentCampusTag(studentId, isOnCampus);
+      await coreServices.updateCampusTag(studentId, isOnCampus);
       // Update local list
       final index = _allStudents.indexWhere(
         (student) => student.id == studentId,
@@ -1102,7 +1115,11 @@ class AppProvider with ChangeNotifier {
   ) async {
     _setLoading(true, 'Updating leave request status...');
     try {
-      await coreServices.updateLeaveRequestStatus(leaveRequestId, status);
+      await coreServices.updateLeaveStatus(
+        leaveRequestId,
+        status.value,
+        null, // comments - we can add this later
+      );
       // Update local list
       final index = _allLeaveRequests.indexWhere(
         (request) => request.id == leaveRequestId,
@@ -1110,6 +1127,36 @@ class AppProvider with ChangeNotifier {
       if (index >= 0) {
         _allLeaveRequests[index] = _allLeaveRequests[index].copyWith(
           status: status,
+        );
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error updating leave status: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> updateLeaveStatusWithComments(
+    String leaveRequestId,
+    LeaveRequestStatus status,
+    String? comments,
+  ) async {
+    _setLoading(true, 'Updating leave request status...');
+    try {
+      await coreServices.updateLeaveStatus(
+        leaveRequestId,
+        status.value,
+        comments,
+      );
+      // Update local list
+      final index = _allLeaveRequests.indexWhere(
+        (request) => request.id == leaveRequestId,
+      );
+      if (index >= 0) {
+        _allLeaveRequests[index] = _allLeaveRequests[index].copyWith(
+          status: status,
+          reviewComments: comments,
         );
       }
       notifyListeners();

@@ -380,18 +380,22 @@ def profile_view(request):
     if request.method == 'GET':
         return Response({
             'first_name': user.first_name,
-            'last_name': user.last_name
+            'last_name': user.last_name,
+            'profile_picture': user.profile_picture_url
         }, status=status.HTTP_200_OK)
 
     if request.method == 'PUT':
         first_name = request.data.get('first_name')
         last_name = request.data.get('last_name')
-        if not all([first_name, last_name]):
-            return Response({'detail': 'Both first_name and last_name are required.'},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        user.first_name = first_name
-        user.last_name = last_name
+        profile_picture = request.data.get('profile_picture')
+        
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        if profile_picture:
+            user.profile_picture_url = profile_picture
+            
         user.save()
         return Response({'message': 'Profile updated successfully.'}, status=status.HTTP_200_OK)
 
@@ -515,8 +519,8 @@ class AdminStudentViewSet(viewsets.ViewSet):
         serializer = UserSerializer(students, many=True)
         return Response({'data': serializer.data})
     
-    @action(detail=True, methods=['patch'])
-    def campus_tag(self, request, pk=None):
+    @action(detail=True, methods=['put'], url_path='campus-tag')
+    def update_campus_tag(self, request, pk=None):
         # Only allow admin users
         if request.user.role != 'admin':
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
@@ -525,8 +529,18 @@ class AdminStudentViewSet(viewsets.ViewSet):
             student = User.objects.get(pk=pk, role='student')
             is_on_campus = request.data.get('is_on_campus')
             if is_on_campus is not None:
-                student.campus_tag = is_on_campus
+                student.campus_tag = 'on-campus' if is_on_campus else 'off-campus'
                 student.save()
+                
+                # Log the campus status change
+                SystemLog.objects.create(
+                    user=student,
+                    log_type='system',
+                    event=f'Campus status changed to {"on-campus" if is_on_campus else "off-campus"}',
+                    details=f'Updated by admin: {request.user.username or request.user.first_name + " " + request.user.last_name}',
+                    timestamp=timezone.now()
+                )
+                
                 return Response({'message': 'Campus tag updated'})
             return Response({'error': 'is_on_campus field required'}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
@@ -545,8 +559,7 @@ class AdminLeaveViewSet(viewsets.ViewSet):
         serializer = LeaveRequestSerializer(leave_requests, many=True)
         return Response({'data': serializer.data})
     
-    @action(detail=True, methods=['patch'])
-    def status(self, request, pk=None):
+    def update(self, request, pk=None):
         # Only allow admin users
         if request.user.role != 'admin':
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
@@ -554,9 +567,22 @@ class AdminLeaveViewSet(viewsets.ViewSet):
         try:
             leave_request = LeaveRequest.objects.get(pk=pk)
             new_status = request.data.get('status')
-            if new_status in ['approved', 'rejected']:
+            if new_status in ['approved', 'denied']:
                 leave_request.status = new_status
+                leave_request.reviewed_by = request.user
+                leave_request.reviewed_at = timezone.now()
+                leave_request.review_comments = request.data.get('comments', '')
                 leave_request.save()
+                
+                # Log the leave request decision
+                SystemLog.objects.create(
+                    user=leave_request.user,
+                    log_type='system',
+                    event=f'Leave request {new_status}',
+                    details=f'Leave request from {leave_request.start_date} to {leave_request.end_date} was {new_status} by {request.user.name}',
+                    timestamp=timezone.now()
+                )
+                
                 return Response({'message': f'Leave request {new_status}'})
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
         except LeaveRequest.DoesNotExist:

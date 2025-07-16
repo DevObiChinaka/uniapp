@@ -12,6 +12,8 @@ class User {
   final String? program;
   final String? campusTag;
   final bool isOnCampus;
+  final String? universityId;
+  final String? profilePictureUrl;
 
   const User({
     required this.id,
@@ -21,6 +23,8 @@ class User {
     this.program,
     this.campusTag,
     this.isOnCampus = false,
+    this.universityId,
+    this.profilePictureUrl,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -32,6 +36,8 @@ class User {
       program: json['program'] as String?,
       campusTag: json['campus_tag'] as String?,
       isOnCampus: json['is_on_campus'] as bool? ?? false,
+      universityId: json['university_id'] as String?,
+      profilePictureUrl: json['profile_picture'] as String?,
     );
   }
 
@@ -44,6 +50,8 @@ class User {
       'program': program,
       'campus_tag': campusTag,
       'is_on_campus': isOnCampus,
+      'university_id': universityId,
+      'profile_picture': profilePictureUrl,
     };
   }
 
@@ -55,6 +63,7 @@ class User {
     String? program,
     String? campusTag,
     bool? isOnCampus,
+    String? universityId,
   }) {
     return User(
       id: id ?? this.id,
@@ -64,6 +73,7 @@ class User {
       program: program ?? this.program,
       campusTag: campusTag ?? this.campusTag,
       isOnCampus: isOnCampus ?? this.isOnCampus,
+      universityId: universityId ?? this.universityId,
     );
   }
 }
@@ -201,6 +211,8 @@ class LeaveRequest {
   final DateTime? reviewedAt;
   final String? reviewerId;
   final String? reviewComments;
+  final String? studentName;
+  final String? studentUniversityId;
 
   const LeaveRequest({
     required this.id,
@@ -213,6 +225,8 @@ class LeaveRequest {
     this.reviewedAt,
     this.reviewerId,
     this.reviewComments,
+    this.studentName,
+    this.studentUniversityId,
   });
 
   factory LeaveRequest.fromJson(Map<String, dynamic> json) {
@@ -230,6 +244,8 @@ class LeaveRequest {
               : null,
       reviewerId: json['reviewer_id'] as String?,
       reviewComments: json['review_comments'] as String?,
+      studentName: json['student_name'] as String?,
+      studentUniversityId: json['student_university_id'] as String?,
     );
   }
 
@@ -245,6 +261,8 @@ class LeaveRequest {
       'reviewed_at': reviewedAt?.toIso8601String(),
       'reviewer_id': reviewerId,
       'review_comments': reviewComments,
+      'student_name': studentName,
+      'student_university_id': studentUniversityId,
     };
   }
 
@@ -263,6 +281,8 @@ class LeaveRequest {
     DateTime? reviewedAt,
     String? reviewerId,
     String? reviewComments,
+    String? studentName,
+    String? studentUniversityId,
   }) {
     return LeaveRequest(
       id: id ?? this.id,
@@ -275,6 +295,8 @@ class LeaveRequest {
       reviewedAt: reviewedAt ?? this.reviewedAt,
       reviewerId: reviewerId ?? this.reviewerId,
       reviewComments: reviewComments ?? this.reviewComments,
+      studentName: studentName ?? this.studentName,
+      studentUniversityId: studentUniversityId ?? this.studentUniversityId,
     );
   }
 }

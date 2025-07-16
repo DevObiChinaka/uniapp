@@ -78,8 +78,8 @@ class CoreServices {
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(handlePushNotification);
 
-    // Handle background messages
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // Background messages are handled in main.dart
+    // FirebaseMessaging.onBackgroundMessage is set up there
   }
 
   Future<void> registerFcmToken(String token) async {
@@ -109,13 +109,6 @@ class CoreServices {
     // This would typically be handled via provider
     // For now, we'll just log it
     debugPrint('Received notification: [1m[0m${notification.title}');
-  }
-
-  static Future<void> _firebaseMessagingBackgroundHandler(
-    RemoteMessage message,
-  ) async {
-    // Handle background messages
-    debugPrint("Handling background message: ${message.messageId}");
   }
 
   // BLE Methods
@@ -418,16 +411,17 @@ class CoreServices {
       final response = await _dio.get('/admin/students/');
       debugPrint('Students API response: ${response.statusCode}');
       debugPrint('Students API data: ${response.data}');
-      
+
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data['data'];
         debugPrint('Students data count: ${data.length}');
-        
-        final students = data.map((json) {
-          debugPrint('Parsing student: $json');
-          return User.fromJson(json);
-        }).toList();
-        
+
+        final students =
+            data.map((json) {
+              debugPrint('Parsing student: $json');
+              return User.fromJson(json);
+            }).toList();
+
         debugPrint('Parsed ${students.length} students successfully');
         return students;
       }
@@ -454,9 +448,15 @@ class CoreServices {
 
   Future<List<SystemLog>> fetchSystemLogs() async {
     try {
-      final response = await _dio.get('/admin/system-logs/');
+      final response = await _dio.get(
+        '${AppConstants.baseUrl}/admin/system-logs/',
+      );
+      debugPrint(
+        'Fetch system logs response: ${response.statusCode} - ${response.data}',
+      );
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data['data'];
+        debugPrint('System logs data: $data');
         return data.map((json) => SystemLog.fromJson(json)).toList();
       }
       throw Exception('Failed to fetch system logs');
@@ -596,7 +596,7 @@ class CoreServices {
 
   Future<List<User>> getAllStudents() async {
     try {
-      final response = await _dio.get(AppConstants.adminUsersEndpoint);
+      final response = await _dio.get(AppConstants.adminStudentsEndpoint);
       return (response.data as List)
           .map((json) => User.fromJson(json))
           .toList();
@@ -630,16 +630,46 @@ class CoreServices {
     }
   }
 
-  Future<bool> updateCampusTag(String userId, String tag) async {
+  Future<bool> updateCampusTag(String userId, bool isOnCampus) async {
     try {
       final response = await _dio.put(
-        '${AppConstants.adminUsersEndpoint}/$userId/tag',
-        data: {'campus_tag': tag},
+        '${AppConstants.adminStudentsEndpoint}/$userId/campus-tag/',
+        data: {'is_on_campus': isOnCampus},
+      );
+      debugPrint(
+        'Update campus tag response: ${response.statusCode} - ${response.data}',
       );
       return response.statusCode == 200;
     } on DioException catch (e) {
+      debugPrint(
+        'Update campus tag error: ${e.response?.statusCode} - ${e.response?.data}',
+      );
       _handleApiError(e, 'Update campus tag');
       return false;
+    }
+  }
+
+  Future<void> updateProfile(Map<String, dynamic> profileData) async {
+    try {
+      final response = await _dio.put(
+        '${AppConstants.userEndpoint}/profile/',
+        data: profileData,
+      );
+      debugPrint(
+        'Update profile response: ${response.statusCode} - ${response.data}',
+      );
+      if (response.statusCode != 200) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+        );
+      }
+    } on DioException catch (e) {
+      debugPrint(
+        'Update profile error: ${e.response?.statusCode} - ${e.response?.data}',
+      );
+      _handleApiError(e, 'Update profile');
+      rethrow;
     }
   }
 
@@ -650,11 +680,17 @@ class CoreServices {
   ) async {
     try {
       final response = await _dio.put(
-        '${AppConstants.adminLeaveEndpoint}/$leaveId/status',
+        '${AppConstants.adminLeaveEndpoint}/$leaveId/',
         data: {'status': status, 'comments': comments},
+      );
+      debugPrint(
+        'Update leave status response: ${response.statusCode} - ${response.data}',
       );
       return response.statusCode == 200;
     } on DioException catch (e) {
+      debugPrint(
+        'Update leave status error: ${e.response?.statusCode} - ${e.response?.data}',
+      );
       _handleApiError(e, 'Update leave status');
       return false;
     }

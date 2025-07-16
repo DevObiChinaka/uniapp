@@ -34,6 +34,7 @@ class AppConstants {
   static const String fcmEndpoint = '$baseUrl/fcm/';
   static const String faceEndpoint = '$faceApiEndpoint/detect/';
   static const String verifyEndpoint = '$faceApiEndpoint/verify/';
+  static const String userEndpoint = '$baseUrl/users';
 
   // Attendance Thresholds
   static const int defaultTotalSessions = 10;
@@ -66,9 +67,9 @@ class AppConstants {
   static const String unauthorizedExitError =
       'Exit denied: No approved leave request found';
 
-  static const String adminUsersEndpoint = '$baseUrl/admin/users';
-  static const String adminLeaveEndpoint = '$baseUrl/admin/leave';
-  static const String adminLogsEndpoint = '$baseUrl/admin/logs';
+  static const String adminStudentsEndpoint = '$baseUrl/admin/students';
+  static const String adminLeaveEndpoint = '$baseUrl/admin/leave-requests';
+  static const String adminLogsEndpoint = '$baseUrl/admin/system-logs';
 
   // Face verification threshold
   static const double faceConfidenceThreshold = 0.7;
