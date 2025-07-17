@@ -22,15 +22,13 @@ urlpatterns = [
     path('register/', RegisterUserView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),  # new login view
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('profile/', profile_view, name='get_update_profile'),  # ✅ New profile endpoint
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('verify-token/', verify_token, name='verify_token'),
     path('verify-password/', verify_password, name='verify_password'),
     path('change-password/', change_password, name='change_password'),
     path('user-info/', user_info, name='user_info'),
     path('biometric-login/', biometric_login, name='biometric-login'),
-    # Router-generated URLs
-    path('', include(router.urls)),
+    path('my-profile/', profile_view, name='get_update_profile'),
 
     # Custom endpoints
     path('exit/process/', views.ExitViewSet.as_view({'post': 'process'}), name='exit-process'),
@@ -45,4 +43,8 @@ urlpatterns = [
     # Reports
     path('reports/attendance/', views.AttendanceReportView.as_view(), name='attendance-report'),
     path('reports/exit/', views.ExitReportView.as_view(), name='exit-report'),
+    # Place profile endpoint last to avoid router masking
+    
+    # Router-generated URLs (must be last)
+    path('', include(router.urls)),
 ]

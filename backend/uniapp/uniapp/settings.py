@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-qmo08r(z#3f6u1^u&r6^aqccmp&rwh%%$gcrodoe(jnc5r@f$p
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['172.20.10.11', '127.0.0.1', '10.225.174.34', 'localhost']
+ALLOWED_HOSTS = ['10.133.54.34', '127.0.0.1', '10.225.174.34', 'localhost']
 
 
 # Application definition
@@ -127,10 +127,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+}
+
+# JWT token lifetime config (1 day)
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
 AUTH_USER_MODEL = 'users.User'

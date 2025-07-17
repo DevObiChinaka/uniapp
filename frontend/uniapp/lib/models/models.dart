@@ -14,6 +14,10 @@ class User {
   final bool isOnCampus;
   final String? universityId;
   final String? profilePictureUrl;
+  final String? username;
+  final String? firstName;
+  final String? lastName;
+  final String? email;
 
   const User({
     required this.id,
@@ -25,11 +29,15 @@ class User {
     this.isOnCampus = false,
     this.universityId,
     this.profilePictureUrl,
+    this.username,
+    this.firstName,
+    this.lastName,
+    this.email,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       name: json['name'] as String,
       role: json['role'] as String,
       faceId: json['face_id'] as String?,
@@ -37,7 +45,13 @@ class User {
       campusTag: json['campus_tag'] as String?,
       isOnCampus: json['is_on_campus'] as bool? ?? false,
       universityId: json['university_id'] as String?,
-      profilePictureUrl: json['profile_picture'] as String?,
+      profilePictureUrl:
+          json['profile_picture_url'] as String? ??
+          json['profile_picture'] as String?,
+      username: json['username'] as String?,
+      firstName: json['first_name'] as String?,
+      lastName: json['last_name'] as String?,
+      email: json['email'] as String?,
     );
   }
 
@@ -52,6 +66,10 @@ class User {
       'is_on_campus': isOnCampus,
       'university_id': universityId,
       'profile_picture': profilePictureUrl,
+      'username': username,
+      'first_name': firstName,
+      'last_name': lastName,
+      'email': email,
     };
   }
 
@@ -64,6 +82,11 @@ class User {
     String? campusTag,
     bool? isOnCampus,
     String? universityId,
+    String? profilePictureUrl,
+    String? username,
+    String? firstName,
+    String? lastName,
+    String? email,
   }) {
     return User(
       id: id ?? this.id,
@@ -74,6 +97,11 @@ class User {
       campusTag: campusTag ?? this.campusTag,
       isOnCampus: isOnCampus ?? this.isOnCampus,
       universityId: universityId ?? this.universityId,
+      profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
+      username: username ?? this.username,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
     );
   }
 }

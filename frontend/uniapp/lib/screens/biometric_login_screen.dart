@@ -111,7 +111,7 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
     try {
       print('Fetching user profile with access token...');
       final response = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/profile/'),
+        Uri.parse('${AppConstants.baseUrl}/my-profile/'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

@@ -374,30 +374,56 @@ def biometric_login(request):
     return Response(get_tokens_and_user_data(user), status=status.HTTP_200_OK)
 
 @api_view(['GET', 'PUT'])
-@permission_classes([IsAuthenticated])
 def profile_view(request):
     user = request.user
     if request.method == 'GET':
         return Response({
+            'id': user.id,
+            'name': user.get_full_name(),
             'first_name': user.first_name,
             'last_name': user.last_name,
-            'profile_picture': user.profile_picture_url
+            'username': user.username,
+            'email': user.email,
+            'university_id': user.university_id,
+            'role': getattr(user, 'role', None),
+            'program': getattr(user, 'program', None),
+            'profile_picture_url': getattr(user, 'profile_picture_url', None),
+            'is_on_campus': getattr(user, 'is_on_campus', None),
+            'campus_tag': getattr(user, 'campus_tag', None),
         }, status=status.HTTP_200_OK)
 
     if request.method == 'PUT':
         first_name = request.data.get('first_name')
         last_name = request.data.get('last_name')
         profile_picture = request.data.get('profile_picture')
-        
+        email = request.data.get('email')
+        program = request.data.get('program')
         if first_name:
             user.first_name = first_name
         if last_name:
             user.last_name = last_name
         if profile_picture:
             user.profile_picture_url = profile_picture
-            
+        if email:
+            user.email = email
+        if program and hasattr(user, 'program'):
+            user.program = program
         user.save()
-        return Response({'message': 'Profile updated successfully.'}, status=status.HTTP_200_OK)
+        return Response({
+            'id': user.id,
+            'name': user.get_full_name(),
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'username': user.username,
+            'email': user.email,
+            'university_id': user.university_id,
+            'role': getattr(user, 'role', None),
+            'program': getattr(user, 'program', None),
+            'profile_picture_url': getattr(user, 'profile_picture_url', None),
+            'is_on_campus': getattr(user, 'is_on_campus', None),
+            'campus_tag': getattr(user, 'campus_tag', None),
+            'message': 'Profile updated successfully.'
+        }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -405,7 +431,6 @@ def verify_token(request):
     return Response({'message': 'Token is valid'}, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
 def verify_password(request):
     user = request.user
     password = request.data.get('password')
@@ -414,7 +439,6 @@ def verify_password(request):
     return Response({'detail': 'Incorrect password'}, status=400)
 
 @api_view(['PUT'])
-@permission_classes([IsAuthenticated])
 def change_password(request):
     user = request.user
     new_password = request.data.get('new_password')
@@ -429,7 +453,6 @@ def change_password(request):
     return Response({'detail': 'Password changed successfully.'}, status=200)
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
 def user_info(request):
     user = request.user
     data = {

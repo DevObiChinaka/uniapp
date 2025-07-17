@@ -6,7 +6,7 @@ import '../screens/edit_profile_screen.dart';
 import '../screens/student_dashboard.dart';
 import '../screens/lecturer_dashboard.dart';
 import '../screens/security_dashboard.dart';
-import '../screens/admin_dashboard.dart';
+import '../screens/admin/admin_home.dart';
 import '../screens/emergency_exit_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/biometric_login_screen.dart' as biometric;
@@ -94,23 +94,7 @@ class AppRouter {
       ),
       GoRoute(
         path: routes.AppRoutes.adminDashboard,
-        builder: (context, state) {
-          final Map<String, dynamic> extra =
-              state.extra as Map<String, dynamic>? ?? {};
-          final firstName = extra['firstName'] as String? ?? '';
-          final lastName = extra['lastName'] as String? ?? '';
-          final universityId = extra['universityId'] as String? ?? '';
-          final token = extra['token'] as String? ?? '';
-          final role = extra['role'] as String? ?? '';
-
-          return AdminDashboard(
-            firstName: firstName,
-            lastName: lastName,
-            universityId: universityId,
-            token: token,
-            role: role,
-          );
-        },
+        builder: (context, state) => AdminHome(),
       ),
       GoRoute(
         path: routes.AppRoutes.emergencyExit,

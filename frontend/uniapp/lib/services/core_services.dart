@@ -14,6 +14,30 @@ import '../screens/app_constants.dart';
 import '../models/models.dart';
 
 class CoreServices {
+  /// Fetch the latest profile data for the current user from /api/my-profile/
+  Future<User?> fetchProfile() async {
+    try {
+      final response = await _dio.get(
+        '${AppConstants.userEndpoint}/my-profile/',
+      );
+      debugPrint(
+        'Fetch profile response: \\${response.statusCode} - \\${response.data}',
+      );
+      if (response.statusCode == 200) {
+        return User.fromJson(response.data);
+      }
+      return null;
+    } on DioException catch (e) {
+      debugPrint(
+        'Fetch profile error: \\${e.response?.statusCode} - \\${e.response?.data}',
+      );
+      _handleApiError(e, 'Fetch profile');
+      return null;
+    }
+  }
+
+  // Public getter for Dio instance (for advanced use, e.g., profile fetch)
+  Dio get dio => _dio;
   final Dio _dio = Dio();
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final MobileScannerController _qrController = MobileScannerController();
@@ -555,7 +579,7 @@ class CoreServices {
       }
 
       final response = await _dio.post(
-        '/api/auth/token/refresh/',
+        '/auth/token/refresh/', // Corrected endpoint
         data: {'refresh': refreshToken},
       );
 
@@ -652,7 +676,7 @@ class CoreServices {
   Future<void> updateProfile(Map<String, dynamic> profileData) async {
     try {
       final response = await _dio.put(
-        '${AppConstants.userEndpoint}/profile/',
+        '${AppConstants.userEndpoint}/my-profile/',
         data: profileData,
       );
       debugPrint(
@@ -764,6 +788,11 @@ class CoreServices {
     try {
       // Get the token
       final token = await _getAuthToken();
+      final prefs = await SharedPreferences.getInstance();
+      // Remove tokens from storage
+      await prefs.remove('token');
+      await prefs.remove('refresh');
+
       if (token == null) {
         // Already logged out
         return true;

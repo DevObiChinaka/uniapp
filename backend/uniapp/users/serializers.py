@@ -64,7 +64,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'name', 'role', 'face_id', 'program', 'campus_tag', 'is_on_campus', 'university_id']
+        fields = ['id', 'name', 'role', 'face_id', 'program', 'campus_tag', 'is_on_campus', 'university_id', 'email']
     
     def get_id(self, obj):
         """Convert id to string for frontend compatibility"""

@@ -534,6 +534,20 @@ class AppProvider with ChangeNotifier {
               role: AppConstants.studentRole,
             ),
       );
+    } else if (_role == AppConstants.adminRole) {
+      // Try to get admin user from _adminUser if available
+      if (_adminUser != null) return _adminUser;
+      // Fallback: try to get from SharedPreferences or return minimal admin user
+      return User(
+        id: _userId ?? '',
+        name: _adminName ?? 'Admin',
+        role: AppConstants.adminRole,
+        username: _adminUsername,
+        firstName: _adminFirstName,
+        lastName: _adminLastName,
+        email: _adminEmail,
+        profilePictureUrl: _adminProfilePictureUrl,
+      );
     }
     return null;
   }
@@ -927,24 +941,68 @@ class AppProvider with ChangeNotifier {
     return _attendanceStats;
   }
 
+  // Admin user cache
+  User? _adminUser;
+  String? _adminName;
+  String? _adminUsername;
+  String? _adminFirstName;
+  String? _adminLastName;
+  String? _adminEmail;
+  String? _adminProfilePictureUrl;
+
   Future<void> loadUserData() async {
     _setLoading(true, 'Loading user data...');
-
     try {
-      // In a real app, this would load actual data from the server
-      // Here we just simulate loading some data with a delay
-      await Future.delayed(const Duration(seconds: 1));
+      // Try to get user data from backend
+      final prefs = await SharedPreferences.getInstance();
+      final role = prefs.getString('role');
+      final userId =
+          prefs.getString('university_id') ?? prefs.getString('user_id');
+      final username = prefs.getString('username');
+      final firstName = prefs.getString('first_name');
+      final lastName = prefs.getString('last_name');
+      final email = prefs.getString('email');
+      final profilePictureUrl = prefs.getString('profile_picture');
 
-      // Set some user data
-      _role = AppConstants.studentRole;
-      _userId = '12345';
-      _currentProgram = 'Computer Science';
+      if (role == AppConstants.adminRole) {
+        _role = AppConstants.adminRole;
+        _userId = userId;
+        _adminUsername = username;
+        _adminFirstName = firstName;
+        _adminLastName = lastName;
+        _adminEmail = email;
+        _adminProfilePictureUrl = profilePictureUrl;
+        _adminName =
+            (firstName?.isNotEmpty == true || lastName?.isNotEmpty == true)
+                ? '${firstName ?? ''} ${lastName ?? ''}'.trim()
+                : (username ?? 'Admin');
 
-      // Load favorites from SharedPreferences
-      // In a real app, this would load from SharedPreferences
-      _favorites = ['CS101', 'MATH202', 'PHYS101'];
-
-      _calculateAttendanceStats();
+        // Optionally, fetch from backend for freshest data
+        try {
+          final response = await coreServices.dio.get(
+            '${AppConstants.baseUrl}/my-profile/',
+          );
+          if (response.statusCode == 200 && response.data != null) {
+            final userJson = response.data['data'] ?? response.data;
+            _adminUser = User.fromJson(userJson);
+            _adminName = _adminUser?.name;
+            _adminUsername = _adminUser?.username;
+            _adminFirstName = _adminUser?.firstName;
+            _adminLastName = _adminUser?.lastName;
+            _adminEmail = _adminUser?.email;
+            _adminProfilePictureUrl = _adminUser?.profilePictureUrl;
+          }
+        } catch (e) {
+          debugPrint('Failed to fetch admin profile from backend: $e');
+        }
+      } else {
+        // Default to student for now (legacy fallback)
+        _role = AppConstants.studentRole;
+        _userId = userId ?? '12345';
+        _currentProgram = 'Computer Science';
+        _favorites = ['CS101', 'MATH202', 'PHYS101'];
+        _calculateAttendanceStats();
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading user data: $e');

@@ -31,14 +31,14 @@ urlpatterns = [
     path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     # Core API endpoints
-    path('api/v1/', include([
-        # Attendance app endpoints
-        # path('attendance/', include('attendance.urls')),
-        # User management
-        path('users/', include('users.urls')),
-        # System management
-        # path('system/', include('system.urls')),
-    ])),
+    # path('api/v1/', include([
+    #     # Attendance app endpoints
+    #     # path('attendance/', include('attendance.urls')),
+    #     # User management
+    #     # path('users/', include('users.urls')),
+    #     # System management
+    #     # path('system/', include('system.urls')),
+    # ])),
     # Health check
     # path('health/', include('health_check.urls')),
 ]

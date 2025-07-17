@@ -39,7 +39,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/profile/'),
+        Uri.parse('${AppConstants.baseUrl}api/my-profile/'),
         headers: {'Authorization': 'Bearer $token'},
       );
 
@@ -47,8 +47,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (response.statusCode == 200) {
         setState(() {
-          firstNameController.text = data['first_name'] ?? '';
-          lastNameController.text = data['last_name'] ?? '';
+          // Accept both 'first_name' and fallback to 'name' split if needed
+          firstNameController.text =
+              data['first_name'] ?? (data['name']?.split(' ')?.first ?? '');
+          lastNameController.text =
+              data['last_name'] ??
+              (data['name']?.split(' ')?.skip(1)?.join(' ') ?? '');
           isLoading = false;
         });
       } else {
@@ -86,7 +90,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       final response = await http.put(
-        Uri.parse('${AppConstants.baseUrl}/profile/'),
+        Uri.parse('${AppConstants.baseUrl}api/my-profile/'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -103,8 +107,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (response.statusCode == 200) {
         Navigator.pop(context, {
-          'first_name': firstNameController.text.trim(),
-          'last_name': lastNameController.text.trim(),
+          'first_name': data['first_name'] ?? firstNameController.text.trim(),
+          'last_name': data['last_name'] ?? lastNameController.text.trim(),
         });
       } else {
         setState(() {

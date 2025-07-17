@@ -6,8 +6,6 @@ import '../screens/edit_profile_screen.dart';
 import '../screens/student_dashboard.dart';
 import '../screens/lecturer_dashboard.dart';
 import '../screens/security_dashboard.dart';
-import '../screens/admin_dashboard.dart';
-import '../screens/emergency_exit_screen.dart';
 
 class AppRoutes {
   // Route path names

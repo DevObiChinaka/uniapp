@@ -1,3 +1,4 @@
+// Entire file can be deleted as AdminHome is now the main admin dashboard.
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +18,7 @@ class AdminDashboard extends StatefulWidget {
   final String universityId;
   final String token;
   final String role;
+  final String? username;
 
   const AdminDashboard({
     Key? key,
@@ -25,6 +27,7 @@ class AdminDashboard extends StatefulWidget {
     required this.universityId,
     required this.token,
     required this.role,
+    this.username,
   }) : super(key: key);
 
   @override
@@ -77,9 +80,12 @@ class _AdminDashboardState extends State<AdminDashboard>
       });
 
       // Upload to Firebase Storage
-      final String fileName = 'profile_${widget.universityId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final Reference storageRef = FirebaseStorage.instance.ref().child('profile_pictures/$fileName');
-      
+      final String fileName =
+          'profile_${widget.universityId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final Reference storageRef = FirebaseStorage.instance.ref().child(
+        'profile_pictures/$fileName',
+      );
+
       final UploadTask uploadTask = storageRef.putFile(File(image.path));
       final TaskSnapshot snapshot = await uploadTask;
       final String downloadUrl = await snapshot.ref.getDownloadURL();
@@ -650,11 +656,14 @@ class _AdminDashboardState extends State<AdminDashboard>
       builder: (context, provider, _) {
         // Create admin user object from widget properties
         final adminUser = User(
-          id: 'admin_${widget.universityId}',
+          id:
+              widget.role == 'admin'
+                  ? (widget.username ?? widget.token)
+                  : widget.universityId,
           name: '${widget.firstName} ${widget.lastName}',
           role: widget.role,
           isOnCampus: false, // Default value for admin
-          universityId: widget.universityId,
+          universityId: widget.role == 'admin' ? null : widget.universityId,
         );
 
         return RefreshIndicator(
@@ -676,16 +685,18 @@ class _AdminDashboardState extends State<AdminDashboard>
                       CircleAvatar(
                         radius: 60,
                         backgroundColor: Colors.grey[300],
-                        backgroundImage: adminUser.profilePictureUrl != null
-                            ? NetworkImage(adminUser.profilePictureUrl!)
-                            : null,
-                        child: adminUser.profilePictureUrl == null
-                            ? Icon(
-                                Icons.person,
-                                size: 60,
-                                color: Colors.grey[600],
-                              )
-                            : null,
+                        backgroundImage:
+                            adminUser.profilePictureUrl != null
+                                ? NetworkImage(adminUser.profilePictureUrl!)
+                                : null,
+                        child:
+                            adminUser.profilePictureUrl == null
+                                ? Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.grey[600],
+                                )
+                                : null,
                       ),
                       Positioned(
                         bottom: 0,
@@ -696,21 +707,28 @@ class _AdminDashboardState extends State<AdminDashboard>
                             shape: BoxShape.circle,
                           ),
                           child: IconButton(
-                            onPressed: _isUploadingImage ? null : _selectAndUploadImage,
-                            icon: _isUploadingImage 
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.camera_alt,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                            onPressed:
+                                _isUploadingImage
+                                    ? null
+                                    : _selectAndUploadImage,
+                            icon:
+                                _isUploadingImage
+                                    ? SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    )
+                                    : Icon(
+                                      Icons.camera_alt,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
                           ),
                         ),
                       ),
@@ -781,8 +799,12 @@ class _AdminDashboardState extends State<AdminDashboard>
 
                         _buildProfileInfoRow(
                           context,
-                          'Admin ID',
-                          widget.universityId,
+                          widget.role == 'admin'
+                              ? 'Admin Username'
+                              : 'University ID',
+                          widget.role == 'admin'
+                              ? (adminUser.username ?? adminUser.id)
+                              : (adminUser.universityId ?? ''),
                           Icons.account_circle,
                           canEdit: false,
                         ),
@@ -862,7 +884,10 @@ class _AdminDashboardState extends State<AdminDashboard>
                               ? 'Currently on campus'
                               : 'Currently off campus',
                           style: TextStyle(
-                            color: adminUser.isOnCampus ? Colors.green : Colors.blue,
+                            color:
+                                adminUser.isOnCampus
+                                    ? Colors.green
+                                    : Colors.blue,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
