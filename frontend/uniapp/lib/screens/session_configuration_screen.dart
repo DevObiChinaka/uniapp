@@ -247,7 +247,7 @@ class _SessionConfigurationScreenState
 
       // Create a new session
       final sessionId = await appProvider.createSession(
-        lecturerId: widget.lecturerId,
+        lecturer_username: widget.lecturer_username,
         program: _program,
         totalSessions: _totalSessions,
         passThreshold: _passThreshold,

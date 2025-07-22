@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:uniapp/screens/app_provider.dart';
 import 'package:uniapp/models/models.dart';
 
+List<String> _flaggedStudentIds = [];
+
 class AttendanceManagementScreen extends StatefulWidget {
   final String sessionId;
   final String program;
@@ -30,6 +32,15 @@ class _AttendanceManagementScreenState
   void initState() {
     super.initState();
     _loadStudents();
+    _loadFlaggedStudents();
+  }
+
+  void _loadFlaggedStudents() {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    final flagged = provider.getFlaggedStudentsForSession(widget.sessionId);
+    setState(() {
+      _flaggedStudentIds = flagged.map((u) => u.id).toList();
+    });
   }
 
   Future<void> _loadStudents() async {
@@ -82,7 +93,7 @@ class _AttendanceManagementScreenState
 
       await provider.markManualAttendance(
         studentIds: _selectedStudents.map((s) => s.id).toList(),
-        sessionId: widget.sessionId,
+        // sessionId removed, now uses active session from AppProvider
         program: widget.program,
       );
 
@@ -176,12 +187,35 @@ class _AttendanceManagementScreenState
                       itemBuilder: (context, index) {
                         final student = _filteredStudents[index];
                         final isSelected = _isAttending(student);
+                        final isFlagged = _flaggedStudentIds.contains(
+                          student.id,
+                        );
 
                         return ListTile(
                           leading: CircleAvatar(
                             child: Text(student.name.substring(0, 1)),
                           ),
-                          title: Text(student.name),
+                          title: Row(
+                            children: [
+                              Text(
+                                student.name,
+                                style: TextStyle(
+                                  color: isFlagged ? Colors.red : null,
+                                  fontWeight:
+                                      isFlagged ? FontWeight.bold : null,
+                                ),
+                              ),
+                              if (isFlagged)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 6.0),
+                                  child: Icon(
+                                    Icons.warning,
+                                    color: Colors.red,
+                                    size: 18,
+                                  ),
+                                ),
+                            ],
+                          ),
                           subtitle: Text('ID: ${student.id}'),
                           trailing: Checkbox(
                             value: isSelected,

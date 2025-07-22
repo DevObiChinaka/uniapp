@@ -7,6 +7,7 @@ from . import views
 
 
 router = DefaultRouter()
+router.register(r'programs', views.ProgramViewSet, basename='program')
 router.register(r'sessions', views.SessionViewSet, basename='session')
 router.register(r'attendance', views.AttendanceViewSet, basename='attendance')
 router.register(r'leave', views.LeaveRequestViewSet, basename='leave')
@@ -37,7 +38,7 @@ urlpatterns = [
     path('fcm/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm'),
     
     # Session management
-    path('sessions/<int:pk>/start/', views.SessionActionView.as_view({'post': 'start'}), name='session-start'),
+    path('sessions/<int:pk>/activate/', views.SessionViewSet.as_view({'post': 'activate'}), name='session-activate'),
     path('sessions/<int:pk>/end/', views.SessionActionView.as_view({'post': 'end'}), name='session-end'),
     
     # Reports
@@ -46,5 +47,6 @@ urlpatterns = [
     # Place profile endpoint last to avoid router masking
     
     # Router-generated URLs (must be last)
+    # Note: Use plural endpoints, e.g. /api/sessions/, /api/programs/
     path('', include(router.urls)),
 ]

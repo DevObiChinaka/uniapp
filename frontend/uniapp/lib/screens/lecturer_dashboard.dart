@@ -470,7 +470,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
       }
 
       final sessionId = await appProvider.createSession(
-        lecturerId: appProvider.userId!,
+        lecturerUsername: appProvider.userId!,
         program: _selectedProgram!,
         totalSessions: _totalSessions,
         passThreshold: _passThreshold,
@@ -488,7 +488,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
     // Create QR code data with session information and timestamp
     final qrData = jsonEncode({
       'session_id': session.id,
-      'lecturer_id': session.lecturerId,
+      'lecturer_id': session.lecturerUsername,
       'program': session.program,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });

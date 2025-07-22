@@ -7,6 +7,7 @@ import 'app_constants.dart';
 import '../services/core_services.dart';
 import '../services/face_service.dart' hide FaceException; // Avoid conflict
 import '../models/models.dart' hide SyncStatus; // Avoid conflict
+import '../models/program.dart';
 import '../services/session_service.dart';
 import '../main.dart'; // For navigatorKey
 import '../utils/offline_utils.dart';
@@ -17,6 +18,90 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AppProvider with ChangeNotifier {
+  // Program state
+  List<Program> _programs = [];
+  List<Program> get programs => _programs;
+
+  Future<void> fetchPrograms() async {
+    try {
+      final response = await coreServices.dio.get('/programs/');
+      final data = response.data as List;
+      _programs = data.map((e) => Program.fromJson(e)).toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to fetch programs: $e');
+    }
+  }
+
+  /// Activate a session (start/mark as active)
+  Future<bool> activateSession(String sessionId) async {
+    _setLoading(true, 'Activating session...');
+    try {
+      final success = await coreServices.activateSession(sessionId);
+      if (success) {
+        // Update local session state
+        final index = _sessions.indexWhere((s) => s.id == sessionId);
+        if (index != -1) {
+          _sessions[index] = _sessions[index].copyWith(isActive: true);
+          _activeSession = _sessions[index];
+        }
+        notifyListeners();
+      }
+      return success;
+    } catch (e) {
+      debugPrint('Activate session error: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Update a session's configuration and notify listeners
+  Future<void> updateSession(Session updatedSession) async {
+    final index = _sessions.indexWhere((s) => s.id == updatedSession.id);
+    if (index != -1) {
+      _sessions[index] = updatedSession;
+      if (_activeSession != null && _activeSession!.id == updatedSession.id) {
+        _activeSession = updatedSession;
+      }
+      notifyListeners();
+      // TODO: Persist to backend if needed
+    }
+  }
+
+  /// Returns a list of students whose attendance for the given session is below 70% (flagged)
+  List<User> getFlaggedStudentsForSession(String sessionId) {
+    // Count attendance per student for this session
+    final Map<String, int> attendanceCount = {};
+    final sessionRecords = _attendanceRecords.where(
+      (r) => r.sessionId == sessionId,
+    );
+    for (var record in sessionRecords) {
+      attendanceCount[record.userId] =
+          (attendanceCount[record.userId] ?? 0) + 1;
+    }
+    // Find total number of sessions for this sessionId (should be 1, but keep for extensibility)
+    final int totalMarks = sessionRecords.length;
+    if (totalMarks == 0) return _allStudents;
+    // Flag students below 70%
+    final List<User> flagged = [];
+    for (var student in _allStudents) {
+      final count = attendanceCount[student.id] ?? 0;
+      final percent = count / totalMarks;
+      if (percent < 0.7) {
+        flagged.add(student);
+      }
+    }
+    return flagged;
+  }
+
+  /// Remove an attendance record by its id and notify listeners
+  void removeAttendanceRecord(String recordId) {
+    _attendanceRecords.removeWhere((record) => record.id == recordId);
+    _calculateAttendanceStats();
+    notifyListeners();
+  }
+
   final CoreServices coreServices;
   final FaceService faceService;
   late SessionService sessionService;
@@ -126,77 +211,38 @@ class AppProvider with ChangeNotifier {
 
   // Create a new session with specified parameters
   Future<String> createSession({
-    required String lecturerId,
+    required String lecturerUsername,
     required String program,
     required int totalSessions,
     required double passThreshold,
   }) async {
     _setLoading(true, 'Creating session...');
-
     try {
-      // Generate a session ID
-      final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-
-      // Create session object
       final session = Session(
-        id: sessionId,
-        lecturerId: lecturerId,
+        id: '', // Backend will assign
+        lecturerUsername: lecturerUsername,
         program: program,
         startTime: DateTime.now(),
         totalSessions: totalSessions,
         passThreshold: passThreshold,
       );
-
-      // In a real app, this would send data to the server
-      debugPrint('Created session: ${session.id}');
-
-      return sessionId;
+      final success = await coreServices.createSession(session);
+      return success ? 'success' : '';
     } catch (e) {
       debugPrint('Create session error: $e');
-      return ''; // Return empty string to indicate failure
+      return '';
     } finally {
       _setLoading(false);
     }
   }
 
   // Fetch all sessions for a lecturer
-  Future<List<Session>> fetchLecturerSessions(String lecturerId) async {
+  Future<List<Session>> fetchLecturerSessions(String lecturerUsername) async {
     _setLoading(true, 'Fetching sessions...');
-
     try {
-      // In a real app, this would fetch from the server
-      // Return some mock sessions for now
-      final now = DateTime.now();
-      final yesterday = now.subtract(const Duration(days: 1));
-
-      // Mock active session
-      final activeSession = Session(
-        id: '1',
-        lecturerId: lecturerId,
-        program: 'Computer Science 101',
-        startTime: now.subtract(const Duration(minutes: 30)),
-      );
-
-      // Mock past sessions
-      final pastSession1 = Session(
-        id: '2',
-        lecturerId: lecturerId,
-        program: 'Computer Science 101',
-        startTime: yesterday,
-        endTime: yesterday.add(const Duration(hours: 2)),
-      );
-
-      final pastSession2 = Session(
-        id: '3',
-        lecturerId: lecturerId,
-        program: 'Data Structures',
-        startTime: yesterday.subtract(const Duration(days: 1)),
-        endTime: yesterday
-            .subtract(const Duration(days: 1))
-            .add(const Duration(hours: 2)),
-      );
-
-      return [activeSession, pastSession1, pastSession2];
+      // Use username for session fetch
+      final username = getCurrentUser()?.username ?? lecturerUsername;
+      return await coreServices.getSessions(username);
     } catch (e) {
       debugPrint('Error fetching lecturer sessions: $e');
       return [];
@@ -269,7 +315,10 @@ class AppProvider with ChangeNotifier {
   }
 
   // Mark attendance using QR code
-  Future<void> markQRAttendance(String sessionId, String lecturerId) async {
+  Future<void> markQRAttendance(
+    String sessionId,
+    String lecturerUsername,
+  ) async {
     if (_faceId == null) return;
 
     _setLoading(true, 'Verifying QR attendance...');
@@ -327,7 +376,7 @@ class AppProvider with ChangeNotifier {
         extraData: {
           'face_verified': true,
           'verification_confidence': verification.confidence,
-          'lecturer_id': lecturerId,
+          'lecturer_username': lecturerUsername,
         },
       );
 
@@ -535,9 +584,7 @@ class AppProvider with ChangeNotifier {
             ),
       );
     } else if (_role == AppConstants.adminRole) {
-      // Try to get admin user from _adminUser if available
       if (_adminUser != null) return _adminUser;
-      // Fallback: try to get from SharedPreferences or return minimal admin user
       return User(
         id: _userId ?? '',
         name: _adminName ?? 'Admin',
@@ -547,6 +594,18 @@ class AppProvider with ChangeNotifier {
         lastName: _adminLastName,
         email: _adminEmail,
         profilePictureUrl: _adminProfilePictureUrl,
+      );
+    } else if (_role == AppConstants.lecturerRole) {
+      if (_lecturerUser != null) return _lecturerUser;
+      return User(
+        id: _userId ?? '',
+        name: _lecturerName ?? 'Lecturer',
+        role: AppConstants.lecturerRole,
+        username: _lecturerUsername,
+        firstName: _lecturerFirstName,
+        lastName: _lecturerLastName,
+        email: _lecturerEmail,
+        profilePictureUrl: _lecturerProfilePictureUrl,
       );
     }
     return null;
@@ -590,10 +649,23 @@ class AppProvider with ChangeNotifier {
     String sessionId,
     int bleRssi,
   ) async {
+    debugPrint('BLE: markAttendance called with RSSI $bleRssi');
     if (_faceId == null) {
+      debugPrint('BLE: Face ID not registered');
       return MarkAttendanceResult(
         isSuccessful: false,
         message: 'Face ID not registered. Please register your face first.',
+      );
+    }
+
+    // Enforce BLE RSSI threshold
+    if (bleRssi < AppConstants.bleRssiThreshold) {
+      debugPrint(
+        'BLE: Device out of range (RSSI $bleRssi, threshold ${AppConstants.bleRssiThreshold})',
+      );
+      return MarkAttendanceResult(
+        isSuccessful: false,
+        message: 'BLE_RANGE_ERROR: Device is out of range for attendance.',
       );
     }
 
@@ -603,6 +675,7 @@ class AppProvider with ChangeNotifier {
       final verification = await faceService.verifyFace(_faceId!);
       if (!verification.isIdentical ||
           verification.confidence < AppConstants.faceConfidenceThreshold) {
+        debugPrint('BLE: Face verification failed');
         return MarkAttendanceResult(
           isSuccessful: false,
           message: 'Face verification failed. Please try again.',
@@ -621,6 +694,7 @@ class AppProvider with ChangeNotifier {
           );
 
           if (success) {
+            debugPrint('BLE: Attendance marked successfully online');
             _attendanceRecords.add(
               AttendanceRecord(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -638,13 +712,16 @@ class AppProvider with ChangeNotifier {
               message: 'Attendance marked successfully',
             );
           } else {
+            debugPrint('BLE: Failed to mark attendance online');
             return MarkAttendanceResult(
               isSuccessful: false,
               message: 'Failed to mark attendance. Please try again.',
             );
           }
         } catch (networkError) {
-          debugPrint('Network error, saving attendance offline: $networkError');
+          debugPrint(
+            'BLE: Network error, saving attendance offline: $networkError',
+          );
         }
       }
 
@@ -678,6 +755,7 @@ class AppProvider with ChangeNotifier {
       // Show offline indicator
       _showOfflineAttendanceMessage();
 
+      debugPrint('BLE: Attendance saved offline');
       return MarkAttendanceResult(
         isSuccessful: true,
         message:
@@ -685,7 +763,7 @@ class AppProvider with ChangeNotifier {
         isOffline: true,
       );
     } catch (e) {
-      debugPrint('Attendance error: $e');
+      debugPrint('BLE: Attendance error: $e');
       return MarkAttendanceResult(
         isSuccessful: false,
         message: 'Error: ${e.toString()}',
@@ -695,42 +773,55 @@ class AppProvider with ChangeNotifier {
     }
   }
 
-  // Manual attendance marking
+  // Manual attendance marking (always uses current active session from backend)
   Future<void> markManualAttendance({
     required List<String> studentIds,
-    required String sessionId,
-    required String program,
+    String? program,
   }) async {
     _setLoading(true, 'Marking attendance...');
     try {
-      for (String studentId in studentIds) {
-        final attendanceRecord = AttendanceRecord(
-          id:
-              DateTime.now().millisecondsSinceEpoch.toString() +
-              '_' +
-              studentId,
-          userId: studentId,
-          sessionId: sessionId,
-          timestamp: DateTime.now(),
-          method: 'manual',
-          program: program,
+      // Always fetch latest sessions and use the active one
+      if (_role == AppConstants.lecturerRole) {
+        final username = _lecturerUsername ?? getCurrentUser()?.username;
+        final sessions = await fetchLecturerSessions(username ?? '');
+        final activeSession = sessions.firstWhere(
+          (s) => s.isActive,
+          orElse: () {
+            debugPrint('No active session found for manual attendance');
+            throw Exception('No active session found');
+          },
         );
-
-        final success = await coreServices.markAttendance(
-          userId: studentId,
-          sessionId: sessionId,
-          faceVerified:
-              false, // Manual attendance doesn't require face verification
-          bleDeviceId: 'manual',
-          bleRssi: 0,
-        );
-
-        if (success) {
-          _attendanceRecords.add(attendanceRecord);
+        final sessionId = activeSession.id;
+        final sessionProgram = program ?? activeSession.program;
+        for (String studentId in studentIds) {
+          final attendanceRecord = AttendanceRecord(
+            id:
+                DateTime.now().millisecondsSinceEpoch.toString() +
+                '_' +
+                studentId,
+            userId: studentId,
+            sessionId: sessionId,
+            timestamp: DateTime.now(),
+            method: 'manual',
+            program: sessionProgram,
+          );
+          final success = await coreServices.markAttendance(
+            userId: studentId,
+            sessionId: sessionId,
+            faceVerified:
+                false, // Manual attendance doesn't require face verification
+            bleDeviceId: 'manual',
+            bleRssi: 0,
+          );
+          if (success) {
+            _attendanceRecords.add(attendanceRecord);
+          }
         }
+        notifyListeners();
+      } else {
+        debugPrint('Manual attendance only allowed for lecturers');
+        throw Exception('Manual attendance only allowed for lecturers');
       }
-
-      notifyListeners();
     } catch (e) {
       debugPrint('Error marking manual attendance: $e');
       rethrow;
@@ -950,10 +1041,17 @@ class AppProvider with ChangeNotifier {
   String? _adminEmail;
   String? _adminProfilePictureUrl;
 
+  User? _lecturerUser;
+  String? _lecturerName;
+  String? _lecturerUsername;
+  String? _lecturerFirstName;
+  String? _lecturerLastName;
+  String? _lecturerEmail;
+  String? _lecturerProfilePictureUrl;
+
   Future<void> loadUserData() async {
     _setLoading(true, 'Loading user data...');
     try {
-      // Try to get user data from backend
       final prefs = await SharedPreferences.getInstance();
       final role = prefs.getString('role');
       final userId =
@@ -976,8 +1074,6 @@ class AppProvider with ChangeNotifier {
             (firstName?.isNotEmpty == true || lastName?.isNotEmpty == true)
                 ? '${firstName ?? ''} ${lastName ?? ''}'.trim()
                 : (username ?? 'Admin');
-
-        // Optionally, fetch from backend for freshest data
         try {
           final response = await coreServices.dio.get(
             '${AppConstants.baseUrl}/my-profile/',
@@ -995,8 +1091,36 @@ class AppProvider with ChangeNotifier {
         } catch (e) {
           debugPrint('Failed to fetch admin profile from backend: $e');
         }
+      } else if (role == AppConstants.lecturerRole) {
+        _role = AppConstants.lecturerRole;
+        _userId = userId;
+        _lecturerUsername = username;
+        _lecturerFirstName = firstName;
+        _lecturerLastName = lastName;
+        _lecturerEmail = email;
+        _lecturerProfilePictureUrl = profilePictureUrl;
+        _lecturerName =
+            (firstName?.isNotEmpty == true || lastName?.isNotEmpty == true)
+                ? '${firstName ?? ''} ${lastName ?? ''}'.trim()
+                : (username ?? 'Lecturer');
+        try {
+          final response = await coreServices.dio.get(
+            '${AppConstants.baseUrl}/my-profile/',
+          );
+          if (response.statusCode == 200 && response.data != null) {
+            final userJson = response.data['data'] ?? response.data;
+            _lecturerUser = User.fromJson(userJson);
+            _lecturerName = _lecturerUser?.name;
+            _lecturerUsername = _lecturerUser?.username;
+            _lecturerFirstName = _lecturerUser?.firstName;
+            _lecturerLastName = _lecturerUser?.lastName;
+            _lecturerEmail = _lecturerUser?.email;
+            _lecturerProfilePictureUrl = _lecturerUser?.profilePictureUrl;
+          }
+        } catch (e) {
+          debugPrint('Failed to fetch lecturer profile from backend: $e');
+        }
       } else {
-        // Default to student for now (legacy fallback)
         _role = AppConstants.studentRole;
         _userId = userId ?? '12345';
         _currentProgram = 'Computer Science';

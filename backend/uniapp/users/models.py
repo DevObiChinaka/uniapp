@@ -3,6 +3,20 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils import timezone
 
+class Program(models.Model):
+    PROGRAM_CHOICES = [
+        ('Software Engineering', 'Software Engineering'),
+        ('Cyber Security', 'Cyber Security'),
+        ('Computer Science', 'Computer Science'),
+        ('Forensic Science', 'Forensic Science'),
+        ('Applied Physics', 'Applied Physics'),
+        ('Environmental and Conservative Biology', 'Environmental and Conservative Biology'),
+    ]
+    name = models.CharField(max_length=100, choices=PROGRAM_CHOICES, unique=True)
+
+    def __str__(self):
+        return self.name
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, university_id=None, username=None, password=None, **extra_fields):
         role = extra_fields.get('role')
@@ -10,13 +24,21 @@ class CustomUserManager(BaseUserManager):
         if role == 'student':
             if not university_id:
                 raise ValueError("Students must have a university ID")
-            username = None  # ensure username is empty for students
+            username = None
         elif role == 'admin':
             if not username:
                 raise ValueError("Admins must have a username")
-            university_id = None  # ensure university_id is empty for admins
+            university_id = None
+        elif role == 'lecturer':
+            if not username:
+                raise ValueError("Lecturers must have a username")
+            university_id = None
+        elif role == 'security':
+            if not username:
+                raise ValueError("Security staff must have a username")
+            university_id = None
         else:
-            raise ValueError("User role must be either 'student' or 'admin'")
+            raise ValueError("User role must be student, admin, lecturer, or security")
 
         user = self.model(
             university_id=university_id,
@@ -51,8 +73,8 @@ class User(AbstractUser):
     fingerprint_hash = models.TextField(null=True, blank=True)
     face_hash = models.TextField(null=True, blank=True)
     face_id = models.CharField(max_length=100, blank=True, null=True)
-    campus_tag = models.CharField(max_length=20, choices=(('on-campus', 'On Campus'), ('off-campus', 'Off Campus')), default='on-campus')
-    program = models.CharField(max_length=100, blank=True, null=True)
+    campus_tag = models.CharField(max_length=20, choices=(('on-campus', 'On Campus'), ('off-campus', 'Off Campus')), default='on-campus', null=True, blank=True)
+    program = models.ForeignKey(Program, on_delete=models.SET_NULL, blank=True, null=True)
     fcm_token = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
 
@@ -71,24 +93,24 @@ class User(AbstractUser):
             if not self.university_id:
                 raise ValidationError("Students must have a university ID.")
             self.username = None
-        elif self.role == 'admin':
+        elif self.role in ['admin', 'lecturer', 'security']:
             if not self.username:
-                raise ValidationError("Admins must have a username.")
+                raise ValidationError(f"{self.role.capitalize()}s must have a username.")
             self.university_id = None
         else:
-            raise ValidationError("Role must be either 'student' or 'admin'.")
+            raise ValidationError("Role must be student, admin, lecturer, or security.")
 
 class Session(models.Model):
     lecturer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
-    program = models.CharField(max_length=100)
+    program = models.ForeignKey(Program, on_delete=models.CASCADE)
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(blank=True, null=True)
     total_sessions = models.IntegerField(default=10)
     pass_threshold = models.FloatField(default=0.7)
+    is_active = models.BooleanField(default=False)
 
-    @property
-    def is_active(self):
-        return self.end_time is None
+    def __str__(self):
+        return f"Session {self.id} ({self.program}) - Active: {self.is_active}"
 
 class Attendance(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -96,6 +118,8 @@ class Attendance(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     method = models.CharField(max_length=50)
     face_verified = models.BooleanField(default=False)
+    flagged = models.BooleanField(default=False)
+    flag_reason = models.TextField(blank=True, null=True)
     ble_device_id = models.CharField(max_length=100, blank=True, null=True)
     ble_rssi = models.IntegerField(blank=True, null=True)
 

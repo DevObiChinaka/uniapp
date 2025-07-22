@@ -22,13 +22,21 @@ class AppConstants {
   static const bool enforceVerificationInDebug = false;
 
   // API Configuration
-  static const String baseUrl = 'http://10.133.54.34:8000/api';
+  static const String baseUrl = 'http://10.170.200.34:8000/api';
   static const String faceApiEndpoint =
       'https://facin-api-test.cognitiveservices.azure.com/';
 
   // API Endpoints
   static const String attendanceEndpoint = '$baseUrl/attendance/';
-  static const String sessionEndpoint = '$baseUrl/session/';
+  // Attendance management endpoints
+  static const String attendanceRemoveEndpoint =
+      '$baseUrl/attendance/{id}/remove/';
+  static const String attendanceFlagEndpoint = '$baseUrl/attendance/{id}/flag/';
+
+  static const String sessionEndpoint = '$baseUrl/sessions/';
+  // Session management endpoints
+  static const String sessionUpdateDetailsEndpoint = '$baseUrl/sessions/{id}/update_details/';
+  static const String sessionActivateEndpoint = '$baseUrl/sessions/{id}/activate/';
   static const String leaveEndpoint = '$baseUrl/leave/';
   static const String exitEndpoint = '$baseUrl/exit/';
   static const String fcmEndpoint = '$baseUrl/fcm/';

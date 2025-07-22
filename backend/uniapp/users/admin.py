@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
+from .models import Program
+
+# Proxy models for admin use only (not in models.py, not migrated)
+admin.site.register(Program)
 
 # Proxy models for admin use only (not in models.py, not migrated)
 class StudentUser(User):
@@ -15,6 +19,19 @@ class AdminUser(User):
         verbose_name = "Admin"
         verbose_name_plural = "Admins"
 
+class LecturerUser(User):
+    class Meta:
+        proxy = True
+        verbose_name = "Lecturer"
+        verbose_name_plural = "Lecturers"
+
+class SecurityUser(User):
+    class Meta:
+        proxy = True
+        verbose_name = "Security"
+        verbose_name_plural = "Security Staff"
+
+
 @admin.register(StudentUser)
 class StudentUserAdmin(admin.ModelAdmin):
     list_display = ['university_id', 'first_name', 'last_name', 'fingerprint_hash', 'face_hash']
@@ -28,6 +45,20 @@ class AdminUserAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.filter(role='admin')
+
+@admin.register(LecturerUser)
+class LecturerUserAdmin(admin.ModelAdmin):
+    list_display = ['username', 'first_name', 'last_name', 'fingerprint_hash', 'face_hash']
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(role='lecturer')
+
+@admin.register(SecurityUser)
+class SecurityUserAdmin(admin.ModelAdmin):
+    list_display = ['username', 'first_name', 'last_name', 'fingerprint_hash', 'face_hash']
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(role='security')
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):

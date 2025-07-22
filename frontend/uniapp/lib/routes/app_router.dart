@@ -4,7 +4,7 @@ import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/edit_profile_screen.dart';
 import '../screens/student_dashboard.dart';
-import '../screens/lecturer_dashboard.dart';
+import '../screens/lecturer/lecturer_home.dart';
 import '../screens/security_dashboard.dart';
 import '../screens/admin/admin_home.dart';
 import '../screens/emergency_exit_screen.dart';
@@ -66,19 +66,8 @@ class AppRouter {
       GoRoute(
         path: routes.AppRoutes.lecturerDashboard,
         builder: (context, state) {
-          final Map<String, dynamic> extra =
-              state.extra as Map<String, dynamic>? ?? {};
-          final firstName = extra['firstName'] as String? ?? '';
-          final lastName = extra['lastName'] as String? ?? '';
-          final token = extra['token'] as String? ?? '';
-          final role = extra['role'] as String? ?? '';
-
-          return LecturerDashboard(
-            firstName: firstName,
-            lastName: lastName,
-            token: token,
-            role: role,
-          );
+          // Pass extra if needed to LecturerHome
+          return LecturerHome();
         },
       ),
       GoRoute(

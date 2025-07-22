@@ -14,6 +14,18 @@ import '../screens/app_constants.dart';
 import '../models/models.dart';
 
 class CoreServices {
+  Future<bool> activateSession(String sessionId) async {
+    try {
+      final response = await _dio.post(
+        '${AppConstants.sessionEndpoint}/$sessionId/activate/',
+      );
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      _handleApiError(e, 'Session activation');
+      return false;
+    }
+  }
+
   /// Fetch the latest profile data for the current user from /api/my-profile/
   Future<User?> fetchProfile() async {
     try {
@@ -282,7 +294,7 @@ class CoreServices {
     try {
       final response = await _dio.get(
         AppConstants.sessionEndpoint,
-        queryParameters: {'lecturer_id': userId},
+        queryParameters: {'username': userId},
       );
 
       return (response.data as List)

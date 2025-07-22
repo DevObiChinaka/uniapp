@@ -1,3 +1,6 @@
+from .models import Program
+from .serializers import ProgramSerializer
+from rest_framework import viewsets
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -15,7 +18,6 @@ from django.conf import settings
 import hashlib
 import hmac
 import json
-
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
 from .serializers import (
     UserSerializer, SessionSerializer, AttendanceSerializer,
@@ -27,20 +29,79 @@ User = get_user_model()
 
 # ====================== ViewSets ======================
 class SessionViewSet(viewsets.ModelViewSet):
+    def list(self, request, *args, **kwargs):
+        username = request.query_params.get('username')
+        queryset = self.get_queryset()
+        if username:
+            queryset = queryset.filter(lecturer__username=username)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
     queryset = Session.objects.all()
     serializer_class = SessionSerializer
     permission_classes = [IsAuthenticated]
 
     def create(self, request):
+        import logging
+        logger = logging.getLogger('django')
+        logger.debug(f"[SessionViewSet.create] Incoming data: {request.data}")
+        print(f"[SessionViewSet.create] Incoming data: {request.data}")
+
         active_sessions = Session.objects.filter(
-            program=request.data['program'],
+            program=request.data.get('program'),
             end_time__isnull=True
         )
-        if active_sessions.exists():
-            return Response({
-                'error': 'SESSION_CONFLICT',
-                'message': 'Cannot start session: Conflict with existing session'
-            }, status=status.HTTP_409_CONFLICT)
+        # You may want to block creation if a session is already active for this program
+        # if active_sessions.exists():
+        #     logger.debug('Active session exists for this program.')
+        #     return Response({'error': 'SESSION_CONFLICT', 'message': 'Active session exists for this program.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        lecturer_username = request.data.get('lecturer')
+        if lecturer_username:
+            try:
+                lecturer = User.objects.get(username=lecturer_username)
+            except User.DoesNotExist:
+                logger.error(f"Lecturer username not found: {lecturer_username}")
+                print(f"Lecturer username not found: {lecturer_username}")
+                return Response({'error': 'LECTURER_NOT_FOUND', 'message': 'Lecturer username not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            lecturer = request.user
+
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            logger.debug(f"[SessionViewSet.create] Validated data: {serializer.validated_data}")
+            print(f"[SessionViewSet.create] Validated data: {serializer.validated_data}")
+            serializer.save(lecturer=lecturer)
+
+            SystemLog.objects.create(
+                log_type='system',
+                event='Session started',
+                user=lecturer,
+                details=f"Session {serializer.data['id']} started"
+            )
+            logger.info(f"Session created successfully: {serializer.data}")
+            print(f"Session created successfully: {serializer.data}")
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.error(f"Error creating session: {str(e)}")
+            print(f"Error creating session: {str(e)}")
+            return Response({'error': 'SESSION_CREATION_ERROR', 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        session = self.get_object()
+        if session.lecturer != request.user:
+            return Response({'error': 'PERMISSION_DENIED', 'message': 'You do not own this session.'}, status=status.HTTP_403_FORBIDDEN)
+        if session.end_time is not None:
+            return Response({'error': 'SESSION_ALREADY_ENDED', 'message': 'Session already ended.'}, status=status.HTTP_400_BAD_REQUEST)
+        session.start_time = timezone.now()
+        session.save()
+        SystemLog.objects.create(
+            log_type='system',
+            event='Session activated',
+            user=request.user,
+            details=f"Session {session.id} activated"
+        )
+        return Response({'status': 'session activated', 'session_id': session.id})
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -86,9 +147,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'message': 'Device too far away'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        session_id = request.data.get('session')
+        session = Session.objects.get(id=session_id)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        serializer.save(user=request.user, session=session)
         
         SystemLog.objects.create(
             log_type='attendance',
@@ -98,6 +161,42 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['delete'])
+    def remove(self, request, pk=None):
+        attendance = self.get_object()
+        if request.user.role not in ['lecturer', 'admin']:
+            return Response({'error': 'PERMISSION_DENIED'}, status=status.HTTP_403_FORBIDDEN)
+        attendance.delete()
+        SystemLog.objects.create(
+            log_type='attendance',
+            event='Attendance removed',
+            user=request.user,
+            details=f"Attendance {pk} removed"
+        )
+        return Response({'status': 'attendance removed'})
+
+    @action(detail=True, methods=['post'])
+    def flag(self, request, pk=None):
+        attendance = self.get_object()
+        reason = request.data.get('reason', '')
+        attendance.flagged = True
+        attendance.flag_reason = reason
+        attendance.save()
+        SystemLog.objects.create(
+            log_type='attendance',
+            event='Attendance flagged',
+            user=request.user,
+            details=f"Attendance {pk} flagged: {reason}"
+        )
+        return Response({'status': 'attendance flagged'})
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'lecturer':
+            return Attendance.objects.filter(session__lecturer=user)
+        elif user.role == 'admin':
+            return Attendance.objects.all()
+        return Attendance.objects.none()
 class LeaveRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaveRequest.objects.all()
     serializer_class = LeaveRequestSerializer
@@ -302,6 +401,11 @@ def get_tokens_and_user_data(user):
             'username': user.username if user.role == 'admin' else None,
         }
     }
+
+# Program ViewSet
+class ProgramViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Program.objects.all()
+    serializer_class = ProgramSerializer
 
 class RegisterUserView(APIView):
     def post(self, request):

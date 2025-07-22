@@ -167,64 +167,98 @@ class AttendanceRecord {
 
 @immutable
 class Session {
+  Session copyWith({
+    String? id,
+    String? lecturerUsername,
+    String? program,
+    DateTime? startTime,
+    DateTime? endTime,
+    int? totalSessions,
+    double? passThreshold,
+    bool? isActive,
+  }) {
+    return Session(
+      id: id ?? this.id,
+      lecturerUsername: lecturerUsername ?? this.lecturerUsername,
+      program: program ?? this.program,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      totalSessions: totalSessions ?? this.totalSessions,
+      passThreshold: passThreshold ?? this.passThreshold,
+      isActive: isActive ?? this.isActive,
+    );
+  }
+
   final String id;
-  final String lecturerId;
+  final String lecturerUsername;
   final String program;
   final DateTime startTime;
   final DateTime? endTime;
   final int totalSessions;
   final double passThreshold;
+  final bool isActive;
 
   const Session({
     required this.id,
-    required this.lecturerId,
+    required this.lecturerUsername,
     required this.program,
     required this.startTime,
     this.endTime,
     this.totalSessions = 10,
     this.passThreshold = 0.7,
+    this.isActive = false,
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
+    final lecturerUsername = (json['lecturer_username'] ?? '').toString();
+    debugPrint('Session.fromJson: lecturer_username = $lecturerUsername');
     return Session(
-      id: json['id'] as String,
-      lecturerId: json['lecturer_id'] as String,
-      program: json['program'] as String,
-      startTime: DateTime.parse(json['start_time'] as String),
+      id: (json['id'] ?? '').toString(),
+      lecturerUsername: lecturerUsername,
+      program: (json['program'] ?? '').toString(),
+      startTime:
+          DateTime.tryParse(json['start_time']?.toString() ?? '') ??
+          DateTime.now(),
       endTime:
           json['end_time'] != null
-              ? DateTime.parse(json['end_time'] as String)
+              ? DateTime.tryParse(json['end_time']?.toString() ?? '')
               : null,
       totalSessions: json['total_sessions'] as int? ?? 10,
       passThreshold: (json['pass_threshold'] as num?)?.toDouble() ?? 0.7,
+      isActive: json['is_active'] as bool? ?? (json['end_time'] == null),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'lecturer_id': lecturerId,
+      'lecturer_username': lecturerUsername,
       'program': program,
       'start_time': startTime.toIso8601String(),
       'end_time': endTime?.toIso8601String(),
       'total_sessions': totalSessions,
       'pass_threshold': passThreshold,
+      'is_active': isActive,
     };
   }
 
   String toBlePayload() {
     return jsonEncode({
       'session_id': id,
-      'lecturer_id': lecturerId,
+      'lecturer_username': lecturerUsername,
       'program': program,
       'start_time': startTime.millisecondsSinceEpoch,
     });
   }
 
-  bool get isActive => endTime == null;
+  // ...existing code...
 
-  factory Session.empty() =>
-      Session(id: '', lecturerId: '', program: '', startTime: DateTime(0));
+  factory Session.empty() => Session(
+    id: '',
+    lecturerUsername: '',
+    program: '',
+    startTime: DateTime(0),
+  );
 }
 
 @immutable

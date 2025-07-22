@@ -1,13 +1,29 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
+from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog, Program
 
+class ProgramSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Program
+        fields = ['id', 'name']
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False)
-    program = serializers.CharField(required=False, allow_blank=True)
+    campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False, allow_null=True)
+    program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all(), required=False, allow_null=True)
+    def validate(self, attrs):
+        role = attrs.get('role')
+        if role == 'student':
+            if not attrs.get('campus_tag'):
+                raise serializers.ValidationError({'campus_tag': 'This field is required for students.'})
+            if not attrs.get('program'):
+                raise serializers.ValidationError({'program': 'This field is required for students.'})
+        else:
+            attrs['campus_tag'] = None
+            attrs['program'] = None
+        return attrs
 
     class Meta:
         model = User
@@ -83,14 +99,31 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.campus_tag == 'on-campus' if obj.campus_tag else False
 
 class SessionSerializer(serializers.ModelSerializer):
+    lecturer = serializers.SlugRelatedField(
+        slug_field='username', queryset=User.objects.all(), required=False
+    )
+    program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all())
+    is_active = serializers.BooleanField(required=False)
+
+    id = serializers.SerializerMethodField()
+    lecturer = serializers.SerializerMethodField()
+
     class Meta:
         model = Session
-        fields = '__all__'
+        fields = ['id', 'lecturer', 'program', 'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active']
+
+    def get_id(self, obj):
+        return str(obj.id)
+
+    def get_lecturer(self, obj):
+        # Return lecturer username as string, fallback to empty string if null
+        username = getattr(obj.lecturer, 'username', None)
+        return str(username) if username is not None else ''
 
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
-        fields = '__all__'
+        fields = ['id', 'user', 'session', 'timestamp', 'method', 'face_verified', 'ble_device_id', 'ble_rssi']
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField()
