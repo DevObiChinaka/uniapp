@@ -13,10 +13,10 @@ class QrGenerationScreen extends StatefulWidget {
   final String program;
   
   const QrGenerationScreen({
-    Key? key, 
+    super.key, 
     required this.sessionId,
     required this.program,
-  }) : super(key: key);
+  });
 
   @override
   State<QrGenerationScreen> createState() => _QrGenerationScreenState();
@@ -610,7 +610,6 @@ class _QrGenerationScreenState extends State<QrGenerationScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           ElevatedButton(
-            child: Text(_isBleAdvertising ? 'Disable' : 'Enable'),
             style: ElevatedButton.styleFrom(
               backgroundColor: _isBleAdvertising ? Colors.red : Colors.green,
               foregroundColor: Colors.white,
@@ -619,6 +618,7 @@ class _QrGenerationScreenState extends State<QrGenerationScreen> {
               _toggleBleAdvertising(!_isBleAdvertising);
               Navigator.pop(context);
             } : null,
+            child: Text(_isBleAdvertising ? 'Disable' : 'Enable'),
           ),
         ],
       ),

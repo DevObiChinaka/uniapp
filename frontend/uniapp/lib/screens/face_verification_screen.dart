@@ -15,14 +15,14 @@ class FaceVerificationScreen extends StatefulWidget {
   final String? program;
 
   const FaceVerificationScreen({
-    Key? key,
+    super.key,
     this.title,
     this.subtitle,
     this.onVerificationComplete,
     this.sessionId,
     this.universityId,
     this.program,
-  }) : super(key: key);
+  });
 
   @override
   _FaceVerificationScreenState createState() => _FaceVerificationScreenState();
@@ -32,7 +32,7 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen>
     with SingleTickerProviderStateMixin {
   bool _isProcessing = false;
   String _statusMessage = 'Position your face in the frame';
-  double _progressValue = 0.0;
+  final double _progressValue = 0.0;
   XFile? _capturedImage;
   bool _verificationSuccess = false;
   late AnimationController _animationController;

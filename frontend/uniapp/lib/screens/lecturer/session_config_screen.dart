@@ -6,8 +6,7 @@ import '../../models/program.dart';
 
 class SessionConfigScreen extends StatefulWidget {
   final Session session;
-  const SessionConfigScreen({Key? key, required this.session})
-    : super(key: key);
+  const SessionConfigScreen({super.key, required this.session});
 
   @override
   State<SessionConfigScreen> createState() => _SessionConfigScreenState();

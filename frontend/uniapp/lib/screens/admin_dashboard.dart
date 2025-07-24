@@ -21,14 +21,14 @@ class AdminDashboard extends StatefulWidget {
   final String? username;
 
   const AdminDashboard({
-    Key? key,
+    super.key,
     required this.firstName,
     required this.lastName,
     required this.universityId,
     required this.token,
     required this.role,
     this.username,
-  }) : super(key: key);
+  });
 
   @override
   _AdminDashboardState createState() => _AdminDashboardState();
@@ -253,7 +253,7 @@ class _AdminDashboardState extends State<AdminDashboard>
             },
             child: SingleChildScrollView(
               physics: AlwaysScrollableScrollPhysics(),
-              child: Container(
+              child: SizedBox(
                 height: MediaQuery.of(context).size.height * 0.6,
                 child: Center(
                   child: Column(
@@ -370,7 +370,7 @@ class _AdminDashboardState extends State<AdminDashboard>
             },
             child: SingleChildScrollView(
               physics: AlwaysScrollableScrollPhysics(),
-              child: Container(
+              child: SizedBox(
                 height: MediaQuery.of(context).size.height * 0.6,
                 child: Center(
                   child: Column(
@@ -552,7 +552,7 @@ class _AdminDashboardState extends State<AdminDashboard>
             },
             child: SingleChildScrollView(
               physics: AlwaysScrollableScrollPhysics(),
-              child: Container(
+              child: SizedBox(
                 height: MediaQuery.of(context).size.height * 0.6,
                 child: Center(
                   child: Column(

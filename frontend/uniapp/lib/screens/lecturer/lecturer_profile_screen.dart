@@ -7,7 +7,7 @@ import '../app_provider.dart';
 import '../../models/models.dart';
 
 class LecturerProfileScreen extends StatefulWidget {
-  const LecturerProfileScreen({Key? key}) : super(key: key);
+  const LecturerProfileScreen({super.key});
 
   @override
   State<LecturerProfileScreen> createState() => _LecturerProfileScreenState();
@@ -304,12 +304,12 @@ class EditProfileDialog extends StatefulWidget {
   final void Function(String, String, String) onSave;
 
   const EditProfileDialog({
-    Key? key,
+    super.key,
     required this.firstName,
     required this.lastName,
     required this.email,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<EditProfileDialog> createState() => _EditProfileDialogState();

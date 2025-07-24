@@ -8,7 +8,7 @@ import 'manual_attendance_screen.dart';
 import 'session_config_screen.dart';
 
 class LecturerAttendanceScreen extends StatefulWidget {
-  const LecturerAttendanceScreen({Key? key}) : super(key: key);
+  const LecturerAttendanceScreen({super.key});
 
   @override
   State<LecturerAttendanceScreen> createState() =>
@@ -154,7 +154,7 @@ class _LecturerAttendanceScreenState extends State<LecturerAttendanceScreen> {
                     color: isFlagged ? Colors.orange : Colors.green,
                   ),
                   trailing: Text(
-                    '${Utils.formatPercentage(percentage)}',
+                    Utils.formatPercentage(percentage),
                     style: TextStyle(
                       color: isFlagged ? Colors.orange : Colors.green,
                       fontWeight: FontWeight.bold,

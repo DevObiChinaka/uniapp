@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import '../services/ble_service.dart';
-import '../screens/app_constants.dart';
 
 class BleAttendanceExample {
   final BleService _bleService = BleService();

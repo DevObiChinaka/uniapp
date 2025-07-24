@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:uniapp/screens/app_provider.dart';
 
 class EmergencyExitScreen extends StatefulWidget {
-  const EmergencyExitScreen({Key? key}) : super(key: key);
+  const EmergencyExitScreen({super.key});
 
   @override
   _EmergencyExitScreenState createState() => _EmergencyExitScreenState();
@@ -121,6 +121,11 @@ class _EmergencyExitScreenState extends State<EmergencyExitScreen> {
               SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitEmergencyExit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                ),
                 child:
                     _isSubmitting
                         ? CircularProgressIndicator(
@@ -130,17 +135,12 @@ class _EmergencyExitScreenState extends State<EmergencyExitScreen> {
                           strokeWidth: 2,
                         )
                         : Text('Submit Emergency Exit Request'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                ),
               ),
               SizedBox(height: 16),
               OutlinedButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Cancel'),
                 style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                child: Text('Cancel'),
               ),
             ],
           ),

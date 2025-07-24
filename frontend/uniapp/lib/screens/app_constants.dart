@@ -22,7 +22,7 @@ class AppConstants {
   static const bool enforceVerificationInDebug = false;
 
   // API Configuration
-  static const String baseUrl = 'http://10.170.200.34:8000/api';
+  static const String baseUrl = 'http://172.20.38.34:8000/api';
   static const String faceApiEndpoint =
       'https://facin-api-test.cognitiveservices.azure.com/';
 
@@ -42,7 +42,7 @@ class AppConstants {
   static const String fcmEndpoint = '$baseUrl/fcm/';
   static const String faceEndpoint = '$faceApiEndpoint/detect/';
   static const String verifyEndpoint = '$faceApiEndpoint/verify/';
-  static const String userEndpoint = '$baseUrl';
+  static const String userEndpoint = baseUrl;
 
   // Attendance Thresholds
   static const int defaultTotalSessions = 10;

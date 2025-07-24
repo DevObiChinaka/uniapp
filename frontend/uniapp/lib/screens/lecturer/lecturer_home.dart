@@ -8,7 +8,7 @@ import 'lecturer_attendance_screen.dart';
 import 'lecturer_profile_screen.dart';
 
 class LecturerHome extends StatefulWidget {
-  const LecturerHome({Key? key}) : super(key: key);
+  const LecturerHome({super.key});
 
   @override
   State<LecturerHome> createState() => _LecturerHomeState();

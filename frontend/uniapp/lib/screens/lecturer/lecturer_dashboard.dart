@@ -5,6 +5,8 @@ import '../../models/models.dart';
 import '../../models/program.dart';
 
 class LecturerDashboard extends StatefulWidget {
+  const LecturerDashboard({super.key});
+
   @override
   State<LecturerDashboard> createState() => _LecturerDashboardState();
 }

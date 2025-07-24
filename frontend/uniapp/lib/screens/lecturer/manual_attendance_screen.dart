@@ -5,8 +5,7 @@ import '../../models/models.dart';
 
 class ManualAttendanceScreen extends StatefulWidget {
   final Session session;
-  const ManualAttendanceScreen({Key? key, required this.session})
-    : super(key: key);
+  const ManualAttendanceScreen({super.key, required this.session});
 
   @override
   _ManualAttendanceScreenState createState() => _ManualAttendanceScreenState();

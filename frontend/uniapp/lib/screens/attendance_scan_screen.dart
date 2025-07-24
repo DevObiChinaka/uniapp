@@ -12,8 +12,7 @@ import 'dart:convert';
 class AttendanceScanScreen extends StatefulWidget {
   final String universityId;
 
-  const AttendanceScanScreen({Key? key, required this.universityId})
-    : super(key: key);
+  const AttendanceScanScreen({super.key, required this.universityId});
 
   @override
   State<AttendanceScanScreen> createState() => _AttendanceScanScreenState();
@@ -630,7 +629,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 12),
-              Container(
+              SizedBox(
                 height: 120,
                 child: ListView.builder(
                   itemCount: _bleDevices.length,
@@ -646,11 +645,11 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
                         ),
                         subtitle: Text('Signal: ${device.rssi} dBm'),
                         trailing: ElevatedButton(
-                          child: Text('Connect'),
                           onPressed:
                               _isProcessing
                                   ? null
                                   : () => _connectToBleDevice(device),
+                          child: Text('Connect'),
                         ),
                       ),
                     );

@@ -1,3 +1,4 @@
+
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
@@ -114,6 +115,7 @@ class AttendanceRecord {
   final DateTime timestamp;
   final String method;
   final String? program;
+  final int period;
 
   const AttendanceRecord({
     required this.id,
@@ -122,6 +124,7 @@ class AttendanceRecord {
     required this.timestamp,
     required this.method,
     this.program,
+    required this.period,
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) {
@@ -132,6 +135,7 @@ class AttendanceRecord {
       timestamp: DateTime.parse(json['timestamp'] as String),
       method: json['method'] as String,
       program: json['program'] as String?,
+      period: json['period'] as int? ?? 1,
     );
   }
 
@@ -143,6 +147,7 @@ class AttendanceRecord {
       'timestamp': timestamp.toIso8601String(),
       'method': method,
       'program': program,
+      'period': period,
     };
   }
 
@@ -153,6 +158,7 @@ class AttendanceRecord {
     DateTime? timestamp,
     String? method,
     String? program,
+    int? period,
   }) {
     return AttendanceRecord(
       id: id ?? this.id,
@@ -161,6 +167,7 @@ class AttendanceRecord {
       timestamp: timestamp ?? this.timestamp,
       method: method ?? this.method,
       program: program ?? this.program,
+      period: period ?? this.period,
     );
   }
 }
@@ -197,6 +204,7 @@ class Session {
   final int totalSessions;
   final double passThreshold;
   final bool isActive;
+  final int currentPeriod;
 
   const Session({
     required this.id,
@@ -207,6 +215,7 @@ class Session {
     this.totalSessions = 10,
     this.passThreshold = 0.7,
     this.isActive = false,
+    this.currentPeriod = 0,
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
@@ -226,6 +235,7 @@ class Session {
       totalSessions: json['total_sessions'] as int? ?? 10,
       passThreshold: (json['pass_threshold'] as num?)?.toDouble() ?? 0.7,
       isActive: json['is_active'] as bool? ?? (json['end_time'] == null),
+      currentPeriod: json['current_period'] as int? ?? 0,
     );
   }
 
@@ -239,6 +249,7 @@ class Session {
       'total_sessions': totalSessions,
       'pass_threshold': passThreshold,
       'is_active': isActive,
+      'current_period': currentPeriod,
     };
   }
 
@@ -597,6 +608,7 @@ class OfflineAttendanceRecord {
       timestamp: timestamp,
       method: method,
       program: program,
+      period: extraData['period'] is int ? extraData['period'] as int : 1,
     );
   }
 }

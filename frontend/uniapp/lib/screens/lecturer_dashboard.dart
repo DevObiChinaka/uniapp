@@ -17,12 +17,12 @@ class LecturerDashboard extends StatefulWidget {
   final String role;
 
   const LecturerDashboard({
-    Key? key,
+    super.key,
     required this.firstName,
     required this.lastName,
     required this.token,
     required this.role,
-  }) : super(key: key);
+  });
 
   @override
   _LecturerDashboardState createState() => _LecturerDashboardState();
@@ -92,13 +92,13 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                       }
                     }
                   },
-                  child: Icon(Icons.stop),
                   tooltip: 'End Session',
+                  child: Icon(Icons.stop),
                 )
                 : FloatingActionButton(
                   onPressed: () => _startSession(appProvider),
-                  child: Icon(Icons.play_arrow),
                   tooltip: 'Start Session',
+                  child: Icon(Icons.play_arrow),
                 ),
       ),
     );
@@ -121,7 +121,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
           ...appProvider.sessions
               .where((s) => !s.isActive)
               .map((session) => _buildSessionCard(session))
-              .toList(),
+              ,
         ],
       ),
     );
@@ -383,7 +383,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
                   color: isFlagged ? Colors.orange : Colors.green,
                 ),
                 trailing: Text(
-                  '${Utils.formatPercentage(percentage)}',
+                  Utils.formatPercentage(percentage),
                   style: TextStyle(
                     color: isFlagged ? Colors.orange : Colors.green,
                     fontWeight: FontWeight.bold,
@@ -405,7 +405,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
               ),
             ),
           ),
-          Container(
+          SizedBox(
             height: 100,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -498,7 +498,7 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
       builder:
           (context) => AlertDialog(
             title: Text('Attendance QR Code'),
-            content: Container(
+            content: SizedBox(
               width: 250,
               height: 250,
               child: Column(

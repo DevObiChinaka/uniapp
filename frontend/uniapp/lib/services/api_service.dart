@@ -9,7 +9,7 @@ class ApiService {
 
   static String _ensureTrailingSlash(String endpoint) {
     if (!endpoint.endsWith('/')) {
-      return endpoint + '/';
+      return '$endpoint/';
     }
     return endpoint;
   }

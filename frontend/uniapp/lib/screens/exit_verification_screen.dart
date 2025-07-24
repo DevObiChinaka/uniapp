@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'dart:async';
 
 class ExitVerificationScreen extends StatefulWidget {
-  const ExitVerificationScreen({Key? key}) : super(key: key);
+  const ExitVerificationScreen({super.key});
 
   @override
   State<ExitVerificationScreen> createState() => _ExitVerificationScreenState();
@@ -471,7 +471,7 @@ class _ExitVerificationScreenState extends State<ExitVerificationScreen>
                   SizedBox(height: 24),
 
                   // Countdown indicator
-                  Container(
+                  SizedBox(
                     width: 280,
                     child: Column(
                       children: [

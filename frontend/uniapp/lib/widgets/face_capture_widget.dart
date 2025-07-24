@@ -11,12 +11,12 @@ class FaceCaptureWidget extends StatefulWidget {
   final bool autoCaptureEnabled;
 
   const FaceCaptureWidget({
-    Key? key,
+    super.key,
     required this.onCaptureComplete,
     this.showOverlay = true,
     this.captureDelay = const Duration(seconds: 2),
     this.autoCaptureEnabled = true,
-  }) : super(key: key);
+  });
 
   @override
   _FaceCaptureWidgetState createState() => _FaceCaptureWidgetState();
@@ -239,8 +239,8 @@ class _FaceCaptureWidgetState extends State<FaceCaptureWidget>
             bottom: 16,
             child: FloatingActionButton(
               onPressed: _captureImage,
-              child: Icon(Icons.camera),
               backgroundColor: Colors.blue,
+              child: Icon(Icons.camera),
             ),
           ),
 

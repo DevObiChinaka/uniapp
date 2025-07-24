@@ -7,11 +7,11 @@ class LeaveRequestItem extends StatelessWidget {
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
   const LeaveRequestItem({
-    Key? key,
+    super.key,
     required this.leave,
     this.onApprove,
     this.onReject,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

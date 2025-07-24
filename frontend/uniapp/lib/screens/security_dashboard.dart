@@ -15,8 +15,7 @@ class SecurityDashboard extends StatefulWidget {
   final String token;
   final String role;
 
-  const SecurityDashboard({Key? key, required this.token, required this.role})
-    : super(key: key);
+  const SecurityDashboard({super.key, required this.token, required this.role});
 
   @override
   _SecurityDashboardState createState() => _SecurityDashboardState();

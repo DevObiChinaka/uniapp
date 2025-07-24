@@ -8,7 +8,7 @@ class FaceCaptureWidget extends StatefulWidget {
   final Function(Uint8List) onImageCaptured;
   final bool showPreview;
 
-  const FaceCaptureWidget({
+  const FaceCaptureWidget({super.key, 
     required this.onImageCaptured,
     this.showPreview = true,
   });
@@ -108,8 +108,8 @@ class _FaceCaptureWidgetState extends State<FaceCaptureWidget> {
           padding: const EdgeInsets.only(bottom: 32),
           child: FloatingActionButton(
             onPressed: _isCapturing ? null : _captureImage,
-            child: Icon(Icons.camera_alt),
             backgroundColor: _isCapturing ? Colors.grey : Colors.blue,
+            child: Icon(Icons.camera_alt),
           ),
         ),
       ],
@@ -121,7 +121,7 @@ class BleStatusIndicator extends StatelessWidget {
   final bool isActive;
   final String statusText;
 
-  const BleStatusIndicator({required this.isActive, required this.statusText});
+  const BleStatusIndicator({super.key, required this.isActive, required this.statusText});
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +145,7 @@ class BleStatusIndicator extends StatelessWidget {
 class NotificationCard extends StatelessWidget {
   final AppNotification notification;
 
-  const NotificationCard({required this.notification});
+  const NotificationCard({super.key, required this.notification});
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +194,7 @@ class NotificationCard extends StatelessWidget {
 class StatusTag extends StatelessWidget {
   final String status;
 
-  const StatusTag(this.status);
+  const StatusTag(this.status, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +240,7 @@ class StatusTag extends StatelessWidget {
 class LoadingSpinner extends StatelessWidget {
   final String? message;
 
-  const LoadingSpinner({this.message});
+  const LoadingSpinner({super.key, this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -262,7 +262,7 @@ class LoadingSpinner extends StatelessWidget {
 class QrScannerOverlay extends StatelessWidget {
   final Color borderColor;
 
-  const QrScannerOverlay({this.borderColor = Colors.green});
+  const QrScannerOverlay({super.key, this.borderColor = Colors.green});
 
   @override
   Widget build(BuildContext context) {

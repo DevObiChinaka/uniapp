@@ -1,11 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import '../screens/login_screen.dart';
-import '../screens/register_screen.dart';
-import '../screens/edit_profile_screen.dart';
-import '../screens/student_dashboard.dart';
-import '../screens/lecturer_dashboard.dart';
-import '../screens/security_dashboard.dart';
 
 class AppRoutes {
   // Route path names

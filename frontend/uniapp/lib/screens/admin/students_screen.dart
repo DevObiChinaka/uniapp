@@ -6,6 +6,8 @@ import '../app_provider.dart';
 import '../../widgets/admin/student_list_item.dart';
 
 class StudentsScreen extends StatefulWidget {
+  const StudentsScreen({super.key});
+
   @override
   State<StudentsScreen> createState() => _StudentsScreenState();
 }
@@ -45,8 +47,9 @@ class _StudentsScreenState extends State<StudentsScreen> {
       builder: (context, provider, _) {
         final students =
             provider.allStudents.where((u) => u.role == 'student').toList();
-        if (_suggestions.isEmpty && _searchText.isEmpty)
+        if (_suggestions.isEmpty && _searchText.isEmpty) {
           _suggestions = students;
+        }
         return SafeArea(
           child: Column(
             children: [

@@ -45,6 +45,7 @@ dependencies:
   # Bluetooth
   flutter_reactive_ble: ^5.0.2
   flutter_blue_plus: ^1.15.9
+  flutter_ble_peripheral: ^1.2.6
 
   # Camera & Image
   camera: ^0.10.6

@@ -110,7 +110,7 @@ class SessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Session
-        fields = ['id', 'lecturer', 'program', 'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active']
+        fields = ['id', 'lecturer', 'program', 'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active', 'current_period']
 
     def get_id(self, obj):
         return str(obj.id)
@@ -123,7 +123,7 @@ class SessionSerializer(serializers.ModelSerializer):
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
-        fields = ['id', 'user', 'session', 'timestamp', 'method', 'face_verified', 'ble_device_id', 'ble_rssi']
+        fields = ['id', 'user', 'session', 'timestamp', 'method', 'face_verified', 'period', 'ble_device_id', 'ble_rssi']
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField()

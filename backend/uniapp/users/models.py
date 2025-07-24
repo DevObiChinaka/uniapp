@@ -108,6 +108,7 @@ class Session(models.Model):
     total_sessions = models.IntegerField(default=10)
     pass_threshold = models.FloatField(default=0.7)
     is_active = models.BooleanField(default=False)
+    current_period = models.IntegerField(default=0, help_text="Current attendance period/cycle.")
 
     def __str__(self):
         return f"Session {self.id} ({self.program}) - Active: {self.is_active}"
@@ -118,6 +119,7 @@ class Attendance(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     method = models.CharField(max_length=50)
     face_verified = models.BooleanField(default=False)
+    period = models.IntegerField(default=1, help_text="Attendance period/cycle for this record.")
     flagged = models.BooleanField(default=False)
     flag_reason = models.TextField(blank=True, null=True)
     ble_device_id = models.CharField(max_length=100, blank=True, null=True)

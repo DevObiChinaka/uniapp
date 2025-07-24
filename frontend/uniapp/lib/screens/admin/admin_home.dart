@@ -10,6 +10,8 @@ import 'system_logs_screen.dart';
 import 'profile_screen.dart';
 
 class AdminHome extends StatefulWidget {
+  const AdminHome({super.key});
+
   @override
   _AdminHomeState createState() => _AdminHomeState();
 }

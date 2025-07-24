@@ -6,8 +6,7 @@ import 'flagged_students_screen.dart';
 
 class ManageAttendanceScreen extends StatelessWidget {
   final Session session;
-  const ManageAttendanceScreen({Key? key, required this.session})
-    : super(key: key);
+  const ManageAttendanceScreen({super.key, required this.session});
 
   @override
   Widget build(BuildContext context) {

@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../app_provider.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -233,12 +233,12 @@ class EditProfileDialog extends StatefulWidget {
   final void Function(String, String, String) onSave;
 
   const EditProfileDialog({
-    Key? key,
+    super.key,
     required this.firstName,
     required this.lastName,
     required this.email,
     required this.onSave,
-  }) : super(key: key);
+  });
 
   @override
   State<EditProfileDialog> createState() => _EditProfileDialogState();

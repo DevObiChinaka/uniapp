@@ -12,10 +12,10 @@ class ExitScanScreen extends StatefulWidget {
   final bool hasApprovedLeave;
 
   const ExitScanScreen({
-    Key? key,
+    super.key,
     required this.universityId,
     this.hasApprovedLeave = false,
-  }) : super(key: key);
+  });
 
   @override
   State<ExitScanScreen> createState() => _ExitScanScreenState();

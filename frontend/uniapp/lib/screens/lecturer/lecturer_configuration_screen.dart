@@ -5,7 +5,7 @@ import '../../models/program.dart';
 import '../../models/models.dart';
 
 class LecturerConfigurationScreen extends StatefulWidget {
-  const LecturerConfigurationScreen({Key? key}) : super(key: key);
+  const LecturerConfigurationScreen({super.key});
 
   @override
   State<LecturerConfigurationScreen> createState() =>

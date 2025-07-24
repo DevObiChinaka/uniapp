@@ -88,20 +88,51 @@ class SessionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'SESSION_CREATION_ERROR', 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
+        import logging
+        logger = logging.getLogger('django')
+        logger.debug(f"[SessionViewSet.activate] Called with pk={pk}, user={request.user}, data={request.data}")
+        print(f"[SessionViewSet.activate] Called with pk={pk}, user={request.user}, data={request.data}")
         session = self.get_object()
+        logger.debug(f"[SessionViewSet.activate] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}, current_period={session.current_period}, total_sessions={session.total_sessions}, lecturer={session.lecturer}")
+        print(f"[SessionViewSet.activate] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}, current_period={session.current_period}, total_sessions={session.total_sessions}, lecturer={session.lecturer}")
         if session.lecturer != request.user:
+            logger.debug(f"[SessionViewSet.activate] PERMISSION_DENIED: user={request.user} is not session lecturer={session.lecturer}")
+            print(f"[SessionViewSet.activate] PERMISSION_DENIED: user={request.user} is not session lecturer={session.lecturer}")
             return Response({'error': 'PERMISSION_DENIED', 'message': 'You do not own this session.'}, status=status.HTTP_403_FORBIDDEN)
-        if session.end_time is not None:
+        from django.utils import timezone
+        if session.end_time is not None and session.end_time <= timezone.now():
+            logger.debug(f"[SessionViewSet.activate] SESSION_ALREADY_ENDED: end_time={session.end_time} (<= now)")
+            print(f"[SessionViewSet.activate] SESSION_ALREADY_ENDED: end_time={session.end_time} (<= now)")
             return Response({'error': 'SESSION_ALREADY_ENDED', 'message': 'Session already ended.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Increment current_period
+        session.current_period += 1
         session.start_time = timezone.now()
+        # If current_period >= total_sessions, close session
+        if session.current_period >= session.total_sessions:
+            session.is_active = False
+            session.end_time = timezone.now()
+            logger.debug(f"[SessionViewSet.activate] Session permanently ended: current_period={session.current_period}, total_sessions={session.total_sessions}")
+            print(f"[SessionViewSet.activate] Session permanently ended: current_period={session.current_period}, total_sessions={session.total_sessions}")
+        else:
+            session.is_active = True
+            logger.debug(f"[SessionViewSet.activate] Session activated: current_period={session.current_period}")
+            print(f"[SessionViewSet.activate] Session activated: current_period={session.current_period}")
         session.save()
+        logger.debug(f"[SessionViewSet.activate] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}, current_period={session.current_period}")
+        print(f"[SessionViewSet.activate] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}, current_period={session.current_period}")
         SystemLog.objects.create(
             log_type='system',
             event='Session activated',
             user=request.user,
-            details=f"Session {session.id} activated"
+            details=f"Session {session.id} activated (Period {session.current_period})"
         )
-        return Response({'status': 'session activated', 'session_id': session.id})
+        return Response({
+            'status': 'session activated',
+            'session_id': session.id,
+            'current_period': session.current_period,
+            'is_active': session.is_active
+        })
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -117,10 +148,18 @@ class SessionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def end(self, request, pk=None):
+        import logging
+        logger = logging.getLogger('django')
+        logger.debug(f"[SessionViewSet.end] Called with pk={pk}, user={request.user}, data={request.data}")
+        print(f"[SessionViewSet.end] Called with pk={pk}, user={request.user}, data={request.data}")
         session = self.get_object()
+        logger.debug(f"[SessionViewSet.end] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
+        print(f"[SessionViewSet.end] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
         session.end_time = timezone.now()
+        session.is_active = False
         session.save()
-        
+        logger.debug(f"[SessionViewSet.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
+        print(f"[SessionViewSet.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
         SystemLog.objects.create(
             log_type='system',
             event='Session ended',
@@ -151,7 +190,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         session = Session.objects.get(id=session_id)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user, session=session)
+        # Set period to session.current_period
+        serializer.save(user=request.user, session=session, period=session.current_period)
         
         SystemLog.objects.create(
             log_type='attendance',
@@ -590,11 +630,23 @@ class SessionActionView(viewsets.ViewSet):
         return Response({'status': 'session started'})
 
     def end(self, request, pk=None):
+        import logging
+        logger = logging.getLogger('django')
+        logger.debug(f"[SessionActionView.end] Called with pk={pk}, user={request.user}, data={request.data}")
+        print(f"[SessionActionView.end] Called with pk={pk}, user={request.user}, data={request.data}")
         session = get_object_or_404(Session, pk=pk)
-        if session.end_time:
+        logger.debug(f"[SessionActionView.end] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
+        print(f"[SessionActionView.end] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
+        if not session.is_active:
+            logger.debug(f"[SessionActionView.end] Session already ended (is_active is False)!")
+            print(f"[SessionActionView.end] Session already ended (is_active is False)!")
             return Response({'error': 'Session already ended'}, status=400)
+        # Allow ending if is_active is True, regardless of end_time
         session.end_time = timezone.now()
+        session.is_active = False
         session.save()
+        logger.debug(f"[SessionActionView.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
+        print(f"[SessionActionView.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
         SystemLog.objects.create(
             log_type='system',
             event='Session ended',

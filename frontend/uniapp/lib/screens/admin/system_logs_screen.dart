@@ -7,6 +7,8 @@ import '../app_provider.dart';
 import '../../utils/utils.dart';
 
 class SystemLogsScreen extends StatefulWidget {
+  const SystemLogsScreen({super.key});
+
   @override
   State<SystemLogsScreen> createState() => _SystemLogsScreenState();
 }

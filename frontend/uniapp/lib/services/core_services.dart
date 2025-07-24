@@ -16,11 +16,23 @@ import '../models/models.dart';
 class CoreServices {
   Future<bool> activateSession(String sessionId) async {
     try {
-      final response = await _dio.post(
-        '${AppConstants.sessionEndpoint}/$sessionId/activate/',
+      // Ensure no double slashes in URL
+      String base = AppConstants.sessionEndpoint;
+      if (base.endsWith('/')) base = base.substring(0, base.length - 1);
+      final url = '$base/$sessionId/activate/';
+      debugPrint(
+        'ACTIVATE SESSION: Sending POST to: ' +
+            url +
+            ' with sessionId: ' +
+            sessionId,
+      );
+      final response = await _dio.post(url);
+      debugPrint(
+        'ACTIVATE SESSION: Response status: \'${response.statusCode}\', data: \'${response.data}\'',
       );
       return response.statusCode == 200;
     } on DioException catch (e) {
+      debugPrint('ACTIVATE SESSION: DioException: ' + e.toString());
       _handleApiError(e, 'Session activation');
       return false;
     }
@@ -57,7 +69,7 @@ class CoreServices {
   StreamSubscription<DiscoveredDevice>? _scanSubscription;
 
   // BLE State
-  StreamController<DiscoveredDevice> _bleScanController =
+  final StreamController<DiscoveredDevice> _bleScanController =
       StreamController<DiscoveredDevice>.broadcast();
 
   // API Configuration
@@ -279,12 +291,20 @@ class CoreServices {
 
   Future<bool> endSession(String sessionId) async {
     try {
-      final response = await _dio.put(
-        '${AppConstants.sessionEndpoint}/$sessionId/end',
+      final url = '${AppConstants.sessionEndpoint}$sessionId/end/';
+      debugPrint(
+        'END SESSION: Sending POST to: ' +
+            url +
+            ' with sessionId: ' +
+            sessionId,
       );
-
+      final response = await _dio.post(url);
+      debugPrint(
+        'END SESSION: Response status: \'${response.statusCode}\', data: \'${response.data}\'',
+      );
       return response.statusCode == 200;
     } on DioException catch (e) {
+      debugPrint('END SESSION: DioException: ' + e.toString());
       _handleApiError(e, 'Session ending');
       return false;
     }

@@ -1,23 +1,84 @@
 import 'dart:async';
-// import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'app_constants.dart';
 import '../services/core_services.dart';
-import '../services/face_service.dart' hide FaceException; // Avoid conflict
-import '../models/models.dart' hide SyncStatus; // Avoid conflict
+import '../services/face_service.dart' hide FaceException;
+import '../models/models.dart' hide SyncStatus;
 import '../models/program.dart';
 import '../services/session_service.dart';
-import '../main.dart'; // For navigatorKey
+import '../main.dart';
 import '../utils/offline_utils.dart';
 import '../models/sync_status.dart';
 import '../models/face_exception.dart';
 import '../models/mark_attendance_result.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AppProvider with ChangeNotifier {
+  // BLE broadcasting for lecturer's active session
+  final FlutterBlePeripheral _blePeripheral = FlutterBlePeripheral();
+
+  /// Start BLE broadcast for lecturer's active session
+  Future<void> startBleBroadcast({
+    String? sessionId,
+    String? lecturerUsername,
+  }) async {
+    if (_isBroadcasting) {
+      debugPrint('BLE: Already broadcasting');
+      return;
+    }
+    if (sessionId == null || sessionId.isEmpty) {
+      debugPrint('BLE: Cannot start advertising - sessionId is null or empty');
+      return;
+    }
+    if (lecturerUsername == null || lecturerUsername.isEmpty) {
+      debugPrint(
+        'BLE: Cannot start advertising - lecturerUsername is null or empty',
+      );
+      return;
+    }
+    debugPrint(
+      'BLE: Starting BLE advertising for session $sessionId, lecturer $lecturerUsername',
+    );
+    try {
+      await _blePeripheral.start(
+        advertiseData: AdvertiseData(
+          includeDeviceName: true,
+          serviceUuid: '0000abcd-0000-1000-8000-00805f9b34fb',
+          manufacturerId: 0x1234,
+          manufacturerData: utf8.encode('$sessionId|$lecturerUsername'),
+          serviceData: utf8.encode('SALMS'),
+        ),
+      );
+      _isBroadcasting = true;
+      notifyListeners();
+      debugPrint('BLE: Advertising started');
+    } catch (e) {
+      debugPrint('BLE: Failed to start BLE advertising: $e');
+    }
+  }
+
+  /// Stop BLE broadcast for lecturer's active session
+  Future<void> stopBleBroadcast() async {
+    if (!_isBroadcasting) {
+      debugPrint('BLE: Not currently broadcasting');
+      return;
+    }
+    debugPrint('BLE: Stopping BLE advertising');
+    try {
+      await _blePeripheral.stop();
+      _isBroadcasting = false;
+      notifyListeners();
+      debugPrint('BLE: Advertising stopped');
+    } catch (e) {
+      debugPrint('BLE: Failed to stop BLE advertising: $e');
+    }
+  }
+
   // Program state
   List<Program> _programs = [];
   List<Program> get programs => _programs;
@@ -37,19 +98,79 @@ class AppProvider with ChangeNotifier {
   Future<bool> activateSession(String sessionId) async {
     _setLoading(true, 'Activating session...');
     try {
+      debugPrint(
+        'ACTIVATE SESSION: Calling coreServices.activateSession with sessionId: ' +
+            sessionId,
+      );
       final success = await coreServices.activateSession(sessionId);
+      debugPrint(
+        'ACTIVATE SESSION: coreServices.activateSession returned: ' +
+            success.toString(),
+      );
       if (success) {
-        // Update local session state
+        // Refresh sessions from backend to ensure up-to-date state
+        String lecturerUsername = '';
+        try {
+          final response = await coreServices.dio.get(
+            '${AppConstants.baseUrl}/my-profile/',
+          );
+          if (response.statusCode == 200 && response.data != null) {
+            final userJson = response.data['data'] ?? response.data;
+            lecturerUsername = userJson['username'] ?? '';
+            debugPrint(
+              'ACTIVATE SESSION: Lecturer username fetched from backend: ' +
+                  lecturerUsername,
+            );
+          } else {
+            debugPrint(
+              'ACTIVATE SESSION: Failed to fetch lecturer profile, using cached username',
+            );
+            lecturerUsername =
+                _lecturerUsername ?? getCurrentUser()?.username ?? '';
+          }
+        } catch (e) {
+          debugPrint(
+            'ACTIVATE SESSION: Error fetching lecturer profile: ' +
+                e.toString(),
+          );
+          lecturerUsername =
+              _lecturerUsername ?? getCurrentUser()?.username ?? '';
+        }
+        debugPrint(
+          'ACTIVATE SESSION: Fetching updated sessions for lecturer: ' +
+              lecturerUsername,
+        );
+        final updatedSessions = await fetchLecturerSessions(lecturerUsername);
+        _sessions = updatedSessions;
+        // Update active session reference
         final index = _sessions.indexWhere((s) => s.id == sessionId);
+        debugPrint(
+          'ACTIVATE SESSION: Session index in _sessions: ' + index.toString(),
+        );
         if (index != -1) {
           _sessions[index] = _sessions[index].copyWith(isActive: true);
           _activeSession = _sessions[index];
+          debugPrint(
+            'ACTIVATE SESSION: Set _activeSession to session: ' +
+                _activeSession.toString(),
+          );
         }
+        // Start BLE advertising for this session
+        debugPrint(
+          'ACTIVATE SESSION: Starting BLE broadcast for sessionId: ' +
+              sessionId +
+              ', lecturerUsername: ' +
+              lecturerUsername,
+        );
+        await startBleBroadcast(
+          sessionId: sessionId,
+          lecturerUsername: lecturerUsername,
+        );
         notifyListeners();
       }
       return success;
     } catch (e) {
-      debugPrint('Activate session error: $e');
+      debugPrint('ACTIVATE SESSION: Exception: ' + e.toString());
       return false;
     } finally {
       _setLoading(false);
@@ -120,7 +241,7 @@ class AppProvider with ChangeNotifier {
 
   // Session state
   Session? _activeSession;
-  bool _inSession = false;
+  final bool _inSession = false;
   List<Session> _sessions = [];
   double _attendanceThreshold = AppConstants.defaultPassThreshold;
   int _totalSessions = AppConstants.defaultTotalSessions;
@@ -254,11 +375,21 @@ class AppProvider with ChangeNotifier {
   // End an active session
   Future<bool> endSession(String sessionId) async {
     _setLoading(true, 'Ending session...');
-
     try {
-      // In a real app, this would send data to the server
-      debugPrint('Ended session: $sessionId');
-      return true; // Return success
+      final success = await coreServices.endSession(sessionId);
+      if (success) {
+        // Stop BLE broadcast if active
+        await stopBleBroadcast();
+        // Optionally refresh sessions or update local state
+        String lecturerUsername =
+            _lecturerUsername ?? getCurrentUser()?.username ?? '';
+        final updatedSessions = await fetchLecturerSessions(lecturerUsername);
+        _sessions = updatedSessions;
+        // Update active session reference
+        _activeSession = null;
+        notifyListeners();
+      }
+      return success;
     } catch (e) {
       debugPrint('Error ending session: $e');
       return false;
@@ -340,6 +471,21 @@ class AppProvider with ChangeNotifier {
           );
 
           if (success) {
+            // Find session to get currentPeriod
+            final session = _sessions.firstWhere(
+              (s) => s.id == sessionId,
+              orElse:
+                  () => Session(
+                    id: sessionId,
+                    lecturerUsername: '',
+                    program: _currentProgram ?? '',
+                    startTime: DateTime.now(),
+                    totalSessions: 1,
+                    passThreshold: 0.7,
+                    isActive: false,
+                    currentPeriod: 1,
+                  ),
+            );
             _attendanceRecords.add(
               AttendanceRecord(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -348,6 +494,7 @@ class AppProvider with ChangeNotifier {
                 timestamp: DateTime.now(),
                 method: 'QR+Face',
                 program: _currentProgram,
+                period: session.currentPeriod,
               ),
             );
             _calculateAttendanceStats();
@@ -383,7 +530,26 @@ class AppProvider with ChangeNotifier {
       await _addOfflineAttendanceRecord(offlineRecord);
 
       // Also add to local records for immediate UI update
-      _attendanceRecords.add(offlineRecord.toAttendanceRecord());
+      // Find session to get currentPeriod
+      final session = _sessions.firstWhere(
+        (s) => s.id == sessionId,
+        orElse:
+            () => Session(
+              id: sessionId,
+              lecturerUsername: '',
+              program: _currentProgram ?? '',
+              startTime: DateTime.now(),
+              totalSessions: 1,
+              passThreshold: 0.7,
+              isActive: false,
+              currentPeriod: 1,
+            ),
+      );
+      _attendanceRecords.add(
+        offlineRecord.toAttendanceRecord().copyWith(
+          period: session.currentPeriod,
+        ),
+      );
       _calculateAttendanceStats();
       notifyListeners();
 
@@ -695,6 +861,21 @@ class AppProvider with ChangeNotifier {
 
           if (success) {
             debugPrint('BLE: Attendance marked successfully online');
+            // Find session to get currentPeriod
+            final session = _sessions.firstWhere(
+              (s) => s.id == sessionId,
+              orElse:
+                  () => Session(
+                    id: sessionId,
+                    lecturerUsername: '',
+                    program: _currentProgram ?? '',
+                    startTime: DateTime.now(),
+                    totalSessions: 1,
+                    passThreshold: 0.7,
+                    isActive: false,
+                    currentPeriod: 1,
+                  ),
+            );
             _attendanceRecords.add(
               AttendanceRecord(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -703,6 +884,7 @@ class AppProvider with ChangeNotifier {
                 timestamp: DateTime.now(),
                 method: 'BLE+Face',
                 program: _currentProgram,
+                period: session.currentPeriod,
               ),
             );
             _calculateAttendanceStats();
@@ -748,7 +930,26 @@ class AppProvider with ChangeNotifier {
       await _addOfflineAttendanceRecord(offlineRecord);
 
       // Also add to local records for immediate UI update
-      _attendanceRecords.add(offlineRecord.toAttendanceRecord());
+      // Find session to get currentPeriod
+      final session = _sessions.firstWhere(
+        (s) => s.id == sessionId,
+        orElse:
+            () => Session(
+              id: sessionId,
+              lecturerUsername: '',
+              program: _currentProgram ?? '',
+              startTime: DateTime.now(),
+              totalSessions: 1,
+              passThreshold: 0.7,
+              isActive: false,
+              currentPeriod: 1,
+            ),
+      );
+      _attendanceRecords.add(
+        offlineRecord.toAttendanceRecord().copyWith(
+          period: session.currentPeriod,
+        ),
+      );
       _calculateAttendanceStats();
       notifyListeners();
 
@@ -794,16 +995,29 @@ class AppProvider with ChangeNotifier {
         final sessionId = activeSession.id;
         final sessionProgram = program ?? activeSession.program;
         for (String studentId in studentIds) {
+          // Find session to get currentPeriod
+          final session = _sessions.firstWhere(
+            (s) => s.id == sessionId,
+            orElse:
+                () => Session(
+                  id: sessionId,
+                  lecturerUsername: '',
+                  program: sessionProgram,
+                  startTime: DateTime.now(),
+                  totalSessions: 1,
+                  passThreshold: 0.7,
+                  isActive: false,
+                  currentPeriod: 1,
+                ),
+          );
           final attendanceRecord = AttendanceRecord(
-            id:
-                DateTime.now().millisecondsSinceEpoch.toString() +
-                '_' +
-                studentId,
+            id: '${DateTime.now().millisecondsSinceEpoch}_$studentId',
             userId: studentId,
             sessionId: sessionId,
             timestamp: DateTime.now(),
             method: 'manual',
             program: sessionProgram,
+            period: session.currentPeriod,
           );
           final success = await coreServices.markAttendance(
             userId: studentId,
@@ -1010,6 +1224,7 @@ class AppProvider with ChangeNotifier {
           timestamp: DateTime.now().subtract(const Duration(days: 1)),
           method: 'BLE',
           program: _currentProgram,
+          period: 1,
         ),
         AttendanceRecord(
           id: '2',
@@ -1018,6 +1233,7 @@ class AppProvider with ChangeNotifier {
           timestamp: DateTime.now().subtract(const Duration(days: 2)),
           method: 'QR',
           program: _currentProgram,
+          period: 1,
         ),
       ];
     } catch (e) {
@@ -1264,7 +1480,7 @@ class AppProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error updating profile: $e');
-      throw e;
+      rethrow;
     } finally {
       _setLoading(false);
     }

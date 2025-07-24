@@ -18,7 +18,7 @@ class StudentDashboard extends StatefulWidget {
   final String token;
   final String role;
 
-  const StudentDashboard({
+  const StudentDashboard({super.key, 
     required this.firstName,
     required this.lastName,
     required this.universityId,
@@ -136,6 +136,7 @@ class _StudentDashboardState extends State<StudentDashboard>
                               radius: 30,
                               backgroundImage:
                                   hasImage ? FileImage(File(imagePath)) : null,
+                              backgroundColor: Colors.white,
                               child:
                                   hasImage
                                       ? null
@@ -144,7 +145,6 @@ class _StudentDashboardState extends State<StudentDashboard>
                                         size: 32,
                                         color: Colors.blueGrey,
                                       ),
-                              backgroundColor: Colors.white,
                             ),
                           );
                         },
@@ -287,7 +287,7 @@ class _StudentDashboardState extends State<StudentDashboard>
               child: ListTile(
                 title: Text('Active Session: ${activeSession.program}'),
                 subtitle: Text(
-                  'Started: ' + Utils.formatDateTime(activeSession.startTime),
+                  'Started: ${Utils.formatDateTime(activeSession.startTime)}',
                 ),
                 trailing: Chip(
                   label: Text('Live'),
@@ -319,7 +319,7 @@ class _StudentDashboardState extends State<StudentDashboard>
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               SizedBox(height: 4),
-              Container(
+              SizedBox(
                 height: 120,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
@@ -431,21 +431,21 @@ class _StudentDashboardState extends State<StudentDashboard>
   Widget _buildLeaveTab(AppProvider appProvider) {
     final leaveRequests = appProvider.leaveRequests;
     final isSubmitting = appProvider.isSubmittingLeave;
-    final _leaveFormKey = GlobalKey<FormState>();
-    DateTime? _startDate;
-    DateTime? _endDate;
-    String _reason = '';
+    final leaveFormKey = GlobalKey<FormState>();
+    DateTime? startDate;
+    DateTime? endDate;
+    String reason = '';
 
-    void _submitLeave() async {
-      if (_leaveFormKey.currentState!.validate()) {
-        _leaveFormKey.currentState!.save();
-        if (_startDate == null || _endDate == null) {
+    void submitLeave() async {
+      if (leaveFormKey.currentState!.validate()) {
+        leaveFormKey.currentState!.save();
+        if (startDate == null || endDate == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Please select start and end dates.')),
           );
           return;
         }
-        await appProvider.submitLeaveRequest(_startDate!, _endDate!, _reason);
+        await appProvider.submitLeaveRequest(startDate!, endDate!, reason);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Leave request submitted.')));
@@ -463,7 +463,7 @@ class _StudentDashboardState extends State<StudentDashboard>
           ),
           SizedBox(height: 8),
           Form(
-            key: _leaveFormKey,
+            key: leaveFormKey,
             child: Column(
               children: [
                 Row(
@@ -483,7 +483,7 @@ class _StudentDashboardState extends State<StudentDashboard>
                                     ),
                                   );
                                   if (picked != null) {
-                                    _startDate = picked;
+                                    startDate = picked;
                                     (context as Element).markNeedsBuild();
                                   }
                                 },
@@ -493,9 +493,9 @@ class _StudentDashboardState extends State<StudentDashboard>
                             border: OutlineInputBorder(),
                           ),
                           child: Text(
-                            _startDate == null
+                            startDate == null
                                 ? 'Select'
-                                : Utils.formatDate(_startDate!),
+                                : Utils.formatDate(startDate!),
                           ),
                         ),
                       ),
@@ -509,14 +509,14 @@ class _StudentDashboardState extends State<StudentDashboard>
                                 : () async {
                                   final picked = await showDatePicker(
                                     context: context,
-                                    initialDate: _startDate ?? DateTime.now(),
-                                    firstDate: _startDate ?? DateTime.now(),
+                                    initialDate: startDate ?? DateTime.now(),
+                                    firstDate: startDate ?? DateTime.now(),
                                     lastDate: DateTime.now().add(
                                       Duration(days: 365),
                                     ),
                                   );
                                   if (picked != null) {
-                                    _endDate = picked;
+                                    endDate = picked;
                                     (context as Element).markNeedsBuild();
                                   }
                                 },
@@ -526,9 +526,9 @@ class _StudentDashboardState extends State<StudentDashboard>
                             border: OutlineInputBorder(),
                           ),
                           child: Text(
-                            _endDate == null
+                            endDate == null
                                 ? 'Select'
-                                : Utils.formatDate(_endDate!),
+                                : Utils.formatDate(endDate!),
                           ),
                         ),
                       ),
@@ -547,11 +547,11 @@ class _StudentDashboardState extends State<StudentDashboard>
                           value == null || value.isEmpty
                               ? 'Enter a reason'
                               : null,
-                  onSaved: (value) => _reason = value ?? '',
+                  onSaved: (value) => reason = value ?? '',
                 ),
                 SizedBox(height: 8),
                 ElevatedButton(
-                  onPressed: isSubmitting ? null : _submitLeave,
+                  onPressed: isSubmitting ? null : submitLeave,
                   child:
                       isSubmitting
                           ? SizedBox(
@@ -608,13 +608,13 @@ class _StudentDashboardState extends State<StudentDashboard>
   Widget _buildExitTab(AppProvider appProvider) {
     final isProcessing = appProvider.isExitProcessing;
     final exitResult = appProvider.lastExitResult;
-    String? _lastScannedCode;
+    String? lastScannedCode;
 
-    void _onDetect(BarcodeCapture capture) async {
+    void onDetect(BarcodeCapture capture) async {
       if (isProcessing) return;
       final code = capture.barcodes.firstOrNull?.rawValue;
-      if (code != null && code != _lastScannedCode) {
-        _lastScannedCode = code;
+      if (code != null && code != lastScannedCode) {
+        lastScannedCode = code;
         await appProvider.processGateExit(code);
         (context as Element).markNeedsBuild();
       }
@@ -634,7 +634,7 @@ class _StudentDashboardState extends State<StudentDashboard>
                 children: [
                   MobileScanner(
                     controller: _qrController ??= MobileScannerController(),
-                    onDetect: _onDetect,
+                    onDetect: onDetect,
                   ),
                   if (isProcessing)
                     Container(
@@ -698,7 +698,7 @@ class _StudentDashboardState extends State<StudentDashboard>
             child: ListTile(
               leading: Icon(Icons.bar_chart, color: Colors.blue),
               title: Text('Attendance Rate'),
-              subtitle: Text('${attendanceCount} of $totalSessions sessions'),
+              subtitle: Text('$attendanceCount of $totalSessions sessions'),
               trailing: Text(
                 '${attendancePercent.toStringAsFixed(1)}%',
                 style: TextStyle(
@@ -759,7 +759,7 @@ class _StudentDashboardState extends State<StudentDashboard>
           (context) => AlertDialog(
             title: Text('QR Attendance Scanner'),
             contentPadding: EdgeInsets.zero,
-            content: Container(
+            content: SizedBox(
               height: 300,
               width: 300,
               child: Stack(

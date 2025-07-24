@@ -10,10 +10,10 @@ class AttendanceManagementScreen extends StatefulWidget {
   final String program;
 
   const AttendanceManagementScreen({
-    Key? key,
+    super.key,
     required this.sessionId,
     required this.program,
-  }) : super(key: key);
+  });
 
   @override
   _AttendanceManagementScreenState createState() =>

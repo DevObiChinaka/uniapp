@@ -69,8 +69,9 @@ class Utils {
   static String? validateDateRange(DateTime? start, DateTime? end) {
     if (start == null || end == null) return 'Both dates are required';
     if (end.isBefore(start)) return 'End date cannot be before start date';
-    if (start.isBefore(DateTime.now()))
+    if (start.isBefore(DateTime.now())) {
       return 'Start date cannot be in the past';
+    }
     return null;
   }
 
@@ -139,7 +140,7 @@ class Utils {
 
   // Error Message Handling
   static String getErrorMessage(dynamic error) {
-    if (error is DioError) {
+    if (error is DioException) {
       return error.response?.data['error'] ?? error.message ?? 'Request failed';
     }
     return error.toString();
@@ -165,7 +166,7 @@ class ApiException implements Exception {
 }
 
 // Dio error extension
-extension DioErrorExtension on DioError {
+extension DioErrorExtension on DioException {
   String get errorMessage {
     return response?.data?['error'] ?? message ?? 'Network request failed';
   }

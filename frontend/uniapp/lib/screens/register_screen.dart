@@ -50,10 +50,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _selectedRole == 'student' ? programController.text.trim() : null,
     };
 
-    print('Register payload: ' + payload.toString()); // <-- LOGGING
+    print('Register payload: $payload'); // <-- LOGGING
 
     final response = await ApiService.postAndDecode('/register/', payload);
-    print('Register response: ' + response.toString()); // <-- LOGGING
+    print('Register response: $response'); // <-- LOGGING
     final data = response['body'];
     final status = response['statusCode'];
 

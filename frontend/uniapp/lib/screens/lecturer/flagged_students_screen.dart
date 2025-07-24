@@ -5,8 +5,7 @@ import '../../models/models.dart';
 
 class FlaggedStudentsScreen extends StatelessWidget {
   final String sessionId;
-  const FlaggedStudentsScreen({Key? key, required this.sessionId})
-    : super(key: key);
+  const FlaggedStudentsScreen({super.key, required this.sessionId});
 
   @override
   Widget build(BuildContext context) {

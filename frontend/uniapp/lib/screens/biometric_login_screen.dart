@@ -125,23 +125,27 @@ class _BiometricLoginScreenState extends State<BiometricLoginScreen> {
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
 
-        if (data['first_name'] != null)
+        if (data['first_name'] != null) {
           await prefs.setString('first_name', data['first_name']);
-        if (data['last_name'] != null)
+        }
+        if (data['last_name'] != null) {
           await prefs.setString('last_name', data['last_name']);
+        }
         if (data['role'] != null) await prefs.setString('role', data['role']);
 
         if (data['role'] == 'admin') {
-          if (data['username'] != null)
+          if (data['username'] != null) {
             await prefs.setString('username', data['username']);
+          }
           if (!mounted) return;
           context.go(
             routes.AppRoutes.adminDashboard,
             extra: {'username': data['username'] ?? '', 'token': token},
           );
         } else {
-          if (data['university_id'] != null)
+          if (data['university_id'] != null) {
             await prefs.setString('university_id', data['university_id']);
+          }
           if (!mounted) return;
 
           final role = data['role'] ?? '';

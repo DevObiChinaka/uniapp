@@ -4,8 +4,7 @@ import '../../models/models.dart';
 class StudentListItem extends StatelessWidget {
   final User student;
   final VoidCallback onTap;
-  const StudentListItem({Key? key, required this.student, required this.onTap})
-    : super(key: key);
+  const StudentListItem({super.key, required this.student, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

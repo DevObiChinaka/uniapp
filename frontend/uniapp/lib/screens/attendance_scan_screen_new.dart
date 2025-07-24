@@ -11,8 +11,7 @@ import 'package:crypto/crypto.dart';
 class AttendanceScanScreen extends StatefulWidget {
   final String universityId;
 
-  const AttendanceScanScreen({Key? key, required this.universityId})
-    : super(key: key);
+  const AttendanceScanScreen({super.key, required this.universityId});
 
   @override
   State<AttendanceScanScreen> createState() => _AttendanceScanScreenState();

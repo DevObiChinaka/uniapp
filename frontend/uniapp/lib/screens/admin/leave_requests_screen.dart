@@ -6,6 +6,8 @@ import '../app_provider.dart';
 import '../../widgets/admin/leave_request_item.dart';
 
 class LeaveRequestsScreen extends StatefulWidget {
+  const LeaveRequestsScreen({super.key});
+
   @override
   State<LeaveRequestsScreen> createState() => _LeaveRequestsScreenState();
 }

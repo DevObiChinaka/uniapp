@@ -8,41 +8,14 @@ import 'package:uniapp/routes/app_router.dart';
 import 'package:uniapp/screens/app_provider.dart';
 import 'package:uniapp/services/core_services.dart';
 import 'package:uniapp/services/face_service.dart';
+import 'package:uniapp/screens/splash_screen.dart';
 
 // Global key for navigator to show snackbars from non-widget contexts
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase
-  await Firebase.initializeApp();
-
-  // Initialize core services
-  final coreServices = CoreServices();
-  await coreServices.initialize();
-
-  // Initialize Face Service
-  final faceService = FaceService();
-  await faceService.initialize();
-
-  // Setup FCM
-  await _setupFCM(coreServices);
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create:
-              (context) => AppProvider(
-                coreServices: coreServices,
-                faceService: faceService,
-              ),
-        ),
-      ],
-      child: const UniApp(),
-    ),
-  );
+  runApp(const UniApp());
 }
 
 Future<void> _setupFCM(CoreServices coreServices) async {
@@ -80,28 +53,69 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   coreServices.handlePushNotification(message);
 }
 
-class UniApp extends StatelessWidget {
+class UniApp extends StatefulWidget {
   const UniApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Initialize app provider
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    appProvider.initialize();
+  State<UniApp> createState() => _UniAppState();
+}
 
-    return AppLifecycleHandler(
-      child: MaterialApp.router(
-        routerConfig: AppRouter.router,
-        title: 'UniApp',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          scaffoldBackgroundColor: Colors.grey[100],
-          fontFamily: 'Roboto',
-          appBarTheme: const AppBarTheme(
-            systemOverlayStyle: SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
+class _UniAppState extends State<UniApp> {
+  bool _initialized = false;
+  CoreServices? _coreServices;
+  FaceService? _faceService;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    await Firebase.initializeApp();
+    final coreServices = CoreServices();
+    await coreServices.initialize();
+    final faceService = FaceService();
+    await faceService.initialize();
+    await _setupFCM(coreServices);
+    setState(() {
+      _initialized = true;
+      _coreServices = coreServices;
+      _faceService = faceService;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_initialized) {
+      // Use the actual branded SplashScreen during initialization
+      return MaterialApp(home: SplashScreen());
+    }
+
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create:
+              (context) => AppProvider(
+                coreServices: _coreServices!,
+                faceService: _faceService!,
+              ),
+        ),
+      ],
+      child: AppLifecycleHandler(
+        child: MaterialApp.router(
+          routerConfig: AppRouter.router,
+          title: 'UniApp',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            primarySwatch: Colors.blue,
+            scaffoldBackgroundColor: Colors.grey[100],
+            fontFamily: 'Roboto',
+            appBarTheme: const AppBarTheme(
+              systemOverlayStyle: SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness: Brightness.dark,
+              ),
             ),
           ),
         ),
@@ -145,7 +159,3 @@ class _AppLifecycleHandlerState extends State<AppLifecycleHandler>
   @override
   Widget build(BuildContext context) => widget.child;
 }
-
-// SplashScreen has been moved to its own file
-
-// SplashScreen and BiometricLoginScreen have been moved to their own files

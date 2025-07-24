@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../routes/app_routes.dart' as routes;
@@ -40,12 +39,17 @@ class _SplashScreenState extends State<SplashScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        color: Colors.white,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF6D5DF6), Color(0xFFB07DFB), Color(0xFFF3F3F3)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Morph card
               Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
@@ -53,36 +57,44 @@ class _SplashScreenState extends State<SplashScreen> {
                   borderRadius: BorderRadius.circular(32),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.deepPurple.withOpacity(0.10),
-                      blurRadius: 32,
-                      offset: const Offset(0, 8),
+                      color: Colors.deepPurple.withOpacity(0.15),
+                      blurRadius: 40,
+                      offset: const Offset(0, 16),
                     ),
                   ],
                 ),
                 child: const Icon(
-                  Icons.fingerprint,
+                  Icons.fact_check_rounded, // Modern attendance/checklist icon
                   size: 80,
                   color: Color(0xFF6D5DF6),
                 ),
               ),
               const SizedBox(height: 32),
-              // App title
               Text(
-                'Smart Attendance',
+                'SALMS',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF6D5DF6),
-                  letterSpacing: 1.2,
+                  letterSpacing: 2,
+                  shadows: [
+                    Shadow(
+                      color: Color(0xFFB07DFB),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
-                'and Leave Management',
+                'Smart Attendance & Leave Management System',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 18,
                   color: Color(0xFFB07DFB),
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.1,
                 ),
               ),
               const SizedBox(height: 36),
@@ -90,6 +102,21 @@ class _SplashScreenState extends State<SplashScreen> {
               const CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6D5DF6)),
                 strokeWidth: 4,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(Icons.verified_user, color: Color(0xFFB07DFB), size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'University-Grade Security',
+                    style: TextStyle(
+                      color: Color(0xFF6D5DF6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
