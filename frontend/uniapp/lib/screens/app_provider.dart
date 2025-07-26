@@ -17,8 +17,81 @@ import '../utils/offline_utils.dart';
 import '../models/sync_status.dart';
 import '../models/face_exception.dart';
 import '../models/mark_attendance_result.dart';
+import '../utils/bluetooth_utils.dart';
 
 class AppProvider with ChangeNotifier {
+  /// Request an emergency exit (for use by emergency_exit_screen)
+  Future<bool> requestEmergencyExit({
+    required String userId,
+    required String reason,
+  }) async {
+    _isExitProcessing = true;
+    _lastExitResult = null;
+    notifyListeners();
+
+    try {
+      final result = await coreServices.requestEmergencyExit(
+        userId: userId,
+        reason: reason,
+      );
+      _lastExitResult = result;
+      return result.allowed;
+    } catch (e) {
+      debugPrint('Emergency exit error: $e');
+      _lastExitResult = ExitResult(
+        allowed: false,
+        message: 'Error processing emergency exit: ${e.toString()}',
+      );
+      return false;
+    } finally {
+      _isExitProcessing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Update the status of a leave request (approve/deny) - positional args for admin_dashboard compatibility
+  Future<bool> updateLeaveStatus(
+    String leaveRequestId,
+    LeaveRequestStatus status, [
+    String? comments,
+  ]) async {
+    _setLoading(true, 'Updating leave status...');
+    try {
+      final statusStr = status.toString().split('.').last;
+      final success = await coreServices.updateLeaveStatus(
+        leaveRequestId,
+        statusStr,
+        comments ?? '',
+      );
+      if (success) {
+        final index = _allLeaveRequests.indexWhere(
+          (r) => r.id == leaveRequestId,
+        );
+        if (index != -1) {
+          _allLeaveRequests[index] = _allLeaveRequests[index].copyWith(
+            status: status,
+          );
+        }
+        notifyListeners();
+      }
+      return success;
+    } catch (e) {
+      debugPrint('Error updating leave status: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Alias for updateLeaveStatusWithComments for backward compatibility
+  Future<bool> updateLeaveStatusWithComments(
+    String leaveRequestId,
+    LeaveRequestStatus status, [
+    String? comments,
+  ]) async {
+    return updateLeaveStatus(leaveRequestId, status, comments);
+  }
+
   // BLE broadcasting for lecturer's active session
   final FlutterBlePeripheral _blePeripheral = FlutterBlePeripheral();
 
@@ -31,34 +104,62 @@ class AppProvider with ChangeNotifier {
       debugPrint('BLE: Already broadcasting');
       return;
     }
-    if (sessionId == null || sessionId.isEmpty) {
-      debugPrint('BLE: Cannot start advertising - sessionId is null or empty');
-      return;
+    debugPrint(
+      'BLE: Preparing to start advertising. sessionId: $sessionId, lecturerUsername: $lecturerUsername',
+    );
+    String safeSessionId =
+        (sessionId ?? '').isEmpty ? 'unknown' : sessionId ?? '';
+    String safeLecturerUsername =
+        (lecturerUsername ?? '').isEmpty ? 'unknown' : lecturerUsername ?? '';
+    // Ensure both are Strings
+    safeSessionId = safeSessionId.toString();
+    safeLecturerUsername = safeLecturerUsername.toString();
+    if (safeSessionId == 'unknown') {
+      debugPrint('BLE: WARNING - sessionId is missing, using default value');
     }
-    if (lecturerUsername == null || lecturerUsername.isEmpty) {
+    if (safeLecturerUsername == 'unknown') {
       debugPrint(
-        'BLE: Cannot start advertising - lecturerUsername is null or empty',
+        'BLE: WARNING - lecturerUsername is missing, using default value',
       );
-      return;
     }
     debugPrint(
-      'BLE: Starting BLE advertising for session $sessionId, lecturer $lecturerUsername',
+      'BLE: Starting BLE advertising for session $safeSessionId, lecturer $safeLecturerUsername',
     );
+    debugPrint(
+      'BLE: manufacturerData = ${utf8.encode('$safeSessionId|$safeLecturerUsername')}',
+    );
+    debugPrint(
+      'BLE: advertiseData = {includeDeviceName: true, serviceUuid: 0000abcd-0000-1000-8000-00805f9b34fb, manufacturerId: 0x1234, manufacturerData: $safeSessionId|$safeLecturerUsername, serviceData: SALMS}',
+    );
+    debugPrint(
+      'BLE: sessionId type = ${safeSessionId.runtimeType}, lecturerUsername type = ${safeLecturerUsername.runtimeType}',
+    );
+    // BLE values are always non-null due to default assignment above
     try {
+      debugPrint(
+        'BLE: AdvertiseData payload: ' +
+            'includeDeviceName: true, ' +
+            'deviceName: SALMS-Lecturer, ' +
+            'serviceUuid: 0000abcd-0000-1000-8000-00805f9b34fb, ' +
+            'manufacturerId: 0x1234, ' +
+            'manufacturerData: ${utf8.encode('$safeSessionId|$safeLecturerUsername')}, ' +
+            'serviceData: ${utf8.encode('SALMS')}',
+      );
       await _blePeripheral.start(
         advertiseData: AdvertiseData(
           includeDeviceName: true,
           serviceUuid: '0000abcd-0000-1000-8000-00805f9b34fb',
           manufacturerId: 0x1234,
-          manufacturerData: utf8.encode('$sessionId|$lecturerUsername'),
+          manufacturerData: utf8.encode('$safeSessionId|$safeLecturerUsername'),
           serviceData: utf8.encode('SALMS'),
         ),
       );
       _isBroadcasting = true;
       notifyListeners();
       debugPrint('BLE: Advertising started');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('BLE: Failed to start BLE advertising: $e');
+      debugPrint('BLE: Stack trace: $stack');
     }
   }
 
@@ -97,7 +198,28 @@ class AppProvider with ChangeNotifier {
   /// Activate a session (start/mark as active)
   Future<bool> activateSession(String sessionId) async {
     _setLoading(true, 'Activating session...');
+    bool result = false;
     try {
+      // Ensure BLE permissions BEFORE making the POST request
+      try {
+        await coreServices.ensureBluetoothPermissions();
+      } catch (e) {
+        debugPrint('BLE: Permission denied: ' + e.toString());
+        _setLoading(false);
+        return false;
+      }
+
+      // Ensure Bluetooth is ON before proceeding
+      // This requires BuildContext, so pass it as an argument to activateSession
+      if (navigatorKey.currentContext != null) {
+        final context = navigatorKey.currentContext!;
+        final bluetoothOn = await ensureBluetoothOn(context);
+        if (!bluetoothOn) {
+          _setLoading(false);
+          return false;
+        }
+      }
+
       debugPrint(
         'ACTIVATE SESSION: Calling coreServices.activateSession with sessionId: ' +
             sessionId,
@@ -107,74 +229,108 @@ class AppProvider with ChangeNotifier {
         'ACTIVATE SESSION: coreServices.activateSession returned: ' +
             success.toString(),
       );
-      if (success) {
-        // Refresh sessions from backend to ensure up-to-date state
-        String lecturerUsername = '';
-        try {
-          final response = await coreServices.dio.get(
-            '${AppConstants.baseUrl}/my-profile/',
-          );
-          if (response.statusCode == 200 && response.data != null) {
-            final userJson = response.data['data'] ?? response.data;
-            lecturerUsername = userJson['username'] ?? '';
-            debugPrint(
-              'ACTIVATE SESSION: Lecturer username fetched from backend: ' +
-                  lecturerUsername,
-            );
-          } else {
-            debugPrint(
-              'ACTIVATE SESSION: Failed to fetch lecturer profile, using cached username',
-            );
-            lecturerUsername =
-                _lecturerUsername ?? getCurrentUser()?.username ?? '';
-          }
-        } catch (e) {
+      if (!success) return false;
+
+      // Fetch lecturer username
+      String lecturerUsername = '';
+      try {
+        final response = await coreServices.dio.get(
+          '${AppConstants.baseUrl}/my-profile/',
+        );
+        if (response.statusCode == 200 && response.data != null) {
+          final userJson = response.data['data'] ?? response.data;
+          lecturerUsername = userJson['username'] ?? '';
           debugPrint(
-            'ACTIVATE SESSION: Error fetching lecturer profile: ' +
-                e.toString(),
+            'ACTIVATE SESSION: Lecturer username fetched from backend: ' +
+                lecturerUsername,
+          );
+        } else {
+          debugPrint(
+            'ACTIVATE SESSION: Failed to fetch lecturer profile, using cached username',
           );
           lecturerUsername =
               _lecturerUsername ?? getCurrentUser()?.username ?? '';
         }
+      } catch (e) {
         debugPrint(
-          'ACTIVATE SESSION: Fetching updated sessions for lecturer: ' +
-              lecturerUsername,
+          'ACTIVATE SESSION: Error fetching lecturer profile: ' + e.toString(),
         );
-        final updatedSessions = await fetchLecturerSessions(lecturerUsername);
-        _sessions = updatedSessions;
-        // Update active session reference
-        final index = _sessions.indexWhere((s) => s.id == sessionId);
-        debugPrint(
-          'ACTIVATE SESSION: Session index in _sessions: ' + index.toString(),
-        );
-        if (index != -1) {
-          _sessions[index] = _sessions[index].copyWith(isActive: true);
-          _activeSession = _sessions[index];
-          debugPrint(
-            'ACTIVATE SESSION: Set _activeSession to session: ' +
-                _activeSession.toString(),
-          );
-        }
-        // Start BLE advertising for this session
-        debugPrint(
-          'ACTIVATE SESSION: Starting BLE broadcast for sessionId: ' +
-              sessionId +
-              ', lecturerUsername: ' +
-              lecturerUsername,
-        );
-        await startBleBroadcast(
-          sessionId: sessionId,
-          lecturerUsername: lecturerUsername,
-        );
-        notifyListeners();
+        lecturerUsername =
+            _lecturerUsername ?? getCurrentUser()?.username ?? '';
       }
-      return success;
+      if (lecturerUsername.isEmpty) {
+        debugPrint(
+          'ACTIVATE SESSION: ERROR - Lecturer username is missing, cannot enable BLE.',
+        );
+        return false;
+      }
+
+      debugPrint(
+        'ACTIVATE SESSION: Fetching updated sessions for lecturer: ' +
+            lecturerUsername,
+      );
+      final updatedSessions = await fetchLecturerSessions(lecturerUsername);
+      _sessions = updatedSessions;
+      // Update active session reference
+      final index = _sessions.indexWhere((s) => s.id == sessionId);
+      debugPrint(
+        'ACTIVATE SESSION: Session index in _sessions: ' + index.toString(),
+      );
+      if (index != -1) {
+        _sessions[index] = _sessions[index].copyWith(isActive: true);
+        _activeSession = _sessions[index];
+        debugPrint(
+          'ACTIVATE SESSION: Set _activeSession to session: ' +
+              _activeSession.toString(),
+        );
+      }
+
+      // Ensure permissions before BLE
+      try {
+        await coreServices.ensureBluetoothPermissions();
+      } catch (e) {
+        debugPrint('BLE: Permission denied: ' + e.toString());
+        return false;
+      }
+
+      // Start BLE advertising for this session
+      debugPrint(
+        'ACTIVATE SESSION: Starting BLE broadcast for sessionId: ' +
+            sessionId +
+            ', lecturerUsername: ' +
+            lecturerUsername,
+      );
+      await startBleBroadcast(
+        sessionId: sessionId,
+        lecturerUsername: lecturerUsername,
+      );
+
+      // Notify backend that BLE is enabled for this lecturer
+      try {
+        await coreServices.dio.post(
+          '${AppConstants.baseUrl}/ble-status/',
+          data: {
+            'lecturer_username': lecturerUsername,
+            'session_id': sessionId,
+            'ble_enabled': true,
+          },
+        );
+        debugPrint('ACTIVATE SESSION: BLE status updated in backend');
+      } catch (e) {
+        debugPrint(
+          'ACTIVATE SESSION: Failed to update BLE status in backend: ' +
+              e.toString(),
+        );
+      }
+      notifyListeners();
+      result = true;
     } catch (e) {
       debugPrint('ACTIVATE SESSION: Exception: ' + e.toString());
-      return false;
+      result = false;
     } finally {
       _setLoading(false);
     }
+    return result;
   }
 
   /// Update a session's configuration and notify listeners
@@ -1502,111 +1658,6 @@ class AppProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error updating campus tag: $e');
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  Future<void> updateLeaveStatus(
-    String leaveRequestId,
-    LeaveRequestStatus status,
-  ) async {
-    _setLoading(true, 'Updating leave request status...');
-    try {
-      await coreServices.updateLeaveStatus(
-        leaveRequestId,
-        status.value,
-        null, // comments - we can add this later
-      );
-      // Update local list
-      final index = _allLeaveRequests.indexWhere(
-        (request) => request.id == leaveRequestId,
-      );
-      if (index >= 0) {
-        _allLeaveRequests[index] = _allLeaveRequests[index].copyWith(
-          status: status,
-        );
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error updating leave status: $e');
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  Future<void> updateLeaveStatusWithComments(
-    String leaveRequestId,
-    LeaveRequestStatus status,
-    String? comments,
-  ) async {
-    _setLoading(true, 'Updating leave request status...');
-    try {
-      await coreServices.updateLeaveStatus(
-        leaveRequestId,
-        status.value,
-        comments,
-      );
-      // Update local list
-      final index = _allLeaveRequests.indexWhere(
-        (request) => request.id == leaveRequestId,
-      );
-      if (index >= 0) {
-        _allLeaveRequests[index] = _allLeaveRequests[index].copyWith(
-          status: status,
-          reviewComments: comments,
-        );
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error updating leave status: $e');
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  // Emergency exit methods
-  Future<bool> requestEmergencyExit(String reason) async {
-    _setLoading(true, 'Requesting emergency exit...');
-    try {
-      // Create emergency exit request
-      final exitResult = await coreServices.requestEmergencyExit(
-        userId: _userId!,
-        reason: reason,
-      );
-
-      if (exitResult.allowed) {
-        // Add to notifications
-        _notifications.add(
-          AppNotification(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            title: 'Emergency Exit Approved',
-            body: exitResult.message,
-            type: 'emergency',
-            timestamp: DateTime.now(),
-            read: false,
-          ),
-        );
-        notifyListeners();
-        return true;
-      } else {
-        // Add failure notification
-        _notifications.add(
-          AppNotification(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            title: 'Emergency Exit Denied',
-            body: exitResult.message,
-            type: 'emergency',
-            timestamp: DateTime.now(),
-            read: false,
-          ),
-        );
-        notifyListeners();
-        return false;
-      }
-    } catch (e) {
-      debugPrint('Emergency exit request error: $e');
-      return false;
     } finally {
       _setLoading(false);
     }

@@ -162,7 +162,7 @@ class CoreServices {
   // BLE Methods
   Stream<DiscoveredDevice> scanBleDevices() async* {
     // Request Bluetooth permissions before scanning
-    await _ensureBluetoothPermissions();
+    await ensureBluetoothPermissions();
     await for (final device in _flutterReactiveBle.scanForDevices(
       withServices: [],
     )) {
@@ -176,16 +176,23 @@ class CoreServices {
     _scanSubscription = null;
   }
 
-  Future<void> _ensureBluetoothPermissions() async {
-    final permissions = [
-      Permission.bluetooth,
+  Future<void> ensureBluetoothPermissions() async {
+    debugPrint('Requesting location permission for BLE...');
+    final locationStatus = await Permission.locationWhenInUse.request();
+    debugPrint('Location permission status: \\${locationStatus}');
+    if (!locationStatus.isGranted) {
+      throw Exception('Location permission denied');
+    }
+
+    debugPrint('Requesting BLE permissions...');
+    final blePermissions = [
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.bluetoothAdvertise,
-      Permission.locationWhenInUse,
     ];
-    final statuses = await permissions.request();
-    if (statuses.values.any((status) => !status.isGranted)) {
+    final bleStatuses = await blePermissions.request();
+    debugPrint('BLE permissions status: \\${bleStatuses}');
+    if (bleStatuses.values.any((status) => !status.isGranted)) {
       throw Exception('Bluetooth permissions denied');
     }
   }

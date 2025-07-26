@@ -106,16 +106,16 @@ class SessionSerializer(serializers.ModelSerializer):
     is_active = serializers.BooleanField(required=False)
 
     id = serializers.SerializerMethodField()
-    lecturer = serializers.SerializerMethodField()
+    lecturer_username = serializers.SerializerMethodField()
 
     class Meta:
         model = Session
-        fields = ['id', 'lecturer', 'program', 'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active', 'current_period']
+        fields = ['id', 'lecturer', 'lecturer_username', 'program', 'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active', 'current_period']
 
     def get_id(self, obj):
         return str(obj.id)
 
-    def get_lecturer(self, obj):
+    def get_lecturer_username(self, obj):
         # Return lecturer username as string, fallback to empty string if null
         username = getattr(obj.lecturer, 'username', None)
         return str(username) if username is not None else ''

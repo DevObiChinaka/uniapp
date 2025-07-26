@@ -22,7 +22,10 @@ class _EmergencyExitScreenState extends State<EmergencyExitScreen> {
 
     try {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
-      final success = await appProvider.requestEmergencyExit(_reason);
+      final success = await appProvider.requestEmergencyExit(
+        userId: appProvider.userId ?? '',
+        reason: _reason,
+      );
 
       if (!mounted) return;
 

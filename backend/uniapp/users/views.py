@@ -779,3 +779,31 @@ class AdminSystemLogViewSet(viewsets.ViewSet):
         logs = SystemLog.objects.all().order_by('-timestamp')
         serializer = SystemLogSerializer(logs, many=True)
         return Response({'data': serializer.data})
+
+class BLEStatusAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        lecturer_username = request.data.get('lecturer_username')
+        session_id = request.data.get('session_id')
+        ble_enabled = request.data.get('ble_enabled')
+        if not lecturer_username or not session_id:
+            return Response({'error': 'Missing lecturer_username or session_id'}, status=status.HTTP_400_BAD_REQUEST)
+        # Log BLE status to SystemLog
+        try:
+            lecturer = User.objects.get(username=lecturer_username)
+        except User.DoesNotExist:
+            lecturer = None
+        SystemLog.objects.create(
+            user=lecturer if lecturer else request.user,
+            log_type='system',
+            event='BLE status update',
+            details=f'BLE enabled: {ble_enabled}, session: {session_id}',
+            timestamp=timezone.now()
+        )
+        return Response({
+            'status': 'BLE status updated',
+            'lecturer_username': lecturer_username,
+            'session_id': session_id,
+            'ble_enabled': ble_enabled,
+        }, status=status.HTTP_200_OK)

@@ -36,6 +36,7 @@ urlpatterns = [
     path('users/<int:pk>/update-tag/', views.UserViewSet.as_view({'patch': 'update_tag'}), name='user-update-tag'),
     path('fcm/register/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm-register'),
     path('fcm/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm'),
+    path('ble-status/', views.BLEStatusAPIView.as_view(), name='ble-status'),  # New BLE status endpoint
     
     # Session management
     path('sessions/<int:pk>/activate/', views.SessionViewSet.as_view({'post': 'activate'}), name='session-activate'),
