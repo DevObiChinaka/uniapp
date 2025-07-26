@@ -19,10 +19,11 @@ Future<void> openBluetoothSettings() async {
 
 Future<bool> ensureBluetoothOn(BuildContext context) async {
   final flutterReactiveBle = FlutterReactiveBle();
-  final status = await flutterReactiveBle.statusStream.first;
+  // Use the current status property to avoid triggering BLE permission request/stream
+  final status = flutterReactiveBle.status;
   if (status != BleStatus.ready) {
-    // Prompt user to enable Bluetooth
-    final result = await showDialog<bool>(
+    // Prompt user to enable Bluetooth before any BLE operation
+    await showDialog<bool>(
       context: context,
       builder:
           (ctx) => AlertDialog(
@@ -43,7 +44,12 @@ Future<bool> ensureBluetoothOn(BuildContext context) async {
             ],
           ),
     );
-    return result ?? false;
+    // After user returns, check again if Bluetooth is enabled
+    final newStatus = flutterReactiveBle.status;
+    if (newStatus != BleStatus.ready) {
+      return false;
+    }
+    // Optionally, you could add a delay and re-check, or re-prompt if needed
   }
   return true;
 }

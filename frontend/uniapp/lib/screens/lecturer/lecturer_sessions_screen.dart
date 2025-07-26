@@ -4,8 +4,7 @@ import '../app_provider.dart';
 import '../../models/models.dart';
 import '../../models/program.dart';
 import '../../utils/utils.dart';
-import 'dart:convert';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:uniapp/screens/lecturer/lecturer_qr_generation_screen.dart';
 
 class LecturerSessionsScreen extends StatefulWidget {
   const LecturerSessionsScreen({super.key});
@@ -252,8 +251,7 @@ class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
                 SizedBox(height: 8),
                 ...sessions
                     .where((s) => !s.isActive)
-                    .map((session) => _SessionHistoryCard(session: session))
-                    ,
+                    .map((session) => _SessionHistoryCard(session: session)),
               ],
             ),
           );
@@ -315,10 +313,15 @@ class _ActiveSessionCard extends StatelessWidget {
                               SizedBox(width: 4),
                             ],
                           ),
-                          avatar: Icon(Icons.circle, size: 13, color: Colors.white),
+                          avatar: Icon(
+                            Icons.circle,
+                            size: 13,
+                            color: Colors.white,
+                          ),
                           backgroundColor: Colors.green,
                           labelStyle: TextStyle(color: Colors.white),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.symmetric(horizontal: 6),
                           side: BorderSide.none,
@@ -333,7 +336,10 @@ class _ActiveSessionCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: Colors.greenAccent,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 1.5),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1.5,
+                                ),
                               ),
                             ),
                           ),
@@ -341,13 +347,18 @@ class _ActiveSessionCard extends StatelessWidget {
                     ),
                     SizedBox(width: 6),
                     IconButton(
-                      icon: Icon(Icons.info_outline, size: 20, color: Colors.blueGrey[700]),
+                      icon: Icon(
+                        Icons.info_outline,
+                        size: 20,
+                        color: Colors.blueGrey[700],
+                      ),
                       padding: EdgeInsets.zero,
                       constraints: BoxConstraints(minWidth: 32, minHeight: 32),
                       splashRadius: 20,
                       tooltip: 'Session Details',
-                      onPressed: () => _LecturerSessionsScreenState()
-                          ._showSessionDetailsModal(context, session),
+                      onPressed:
+                          () => _LecturerSessionsScreenState()
+                              ._showSessionDetailsModal(context, session),
                     ),
                   ],
                 ),
@@ -372,7 +383,17 @@ class _ActiveSessionCard extends StatelessWidget {
                   ),
                   textStyle: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                onPressed: () => _showAttendanceQRCode(context, session),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder:
+                          (_) => LecturerQrGenerationScreen(
+                            sessionId: session.id,
+                            program: session.program,
+                          ),
+                    ),
+                  );
+                },
               ),
             ),
             SizedBox(height: 12),
@@ -380,7 +401,10 @@ class _ActiveSessionCard extends StatelessWidget {
             _InfoRow(
               icon: Icons.school,
               label: 'Program',
-              value: _LecturerSessionsScreenState.getProgramName(context, session.program),
+              value: _LecturerSessionsScreenState.getProgramName(
+                context,
+                session.program,
+              ),
             ),
             _InfoRow(
               icon: Icons.calendar_today,
@@ -395,7 +419,8 @@ class _ActiveSessionCard extends StatelessWidget {
             _InfoRow(
               icon: Icons.timelapse,
               label: 'Current Period',
-              value: 'Period ${session.currentPeriod} of ${session.totalSessions}',
+              value:
+                  'Period ${session.currentPeriod} of ${session.totalSessions}',
             ),
             _InfoRow(
               icon: Icons.percent,
@@ -442,53 +467,7 @@ class _ActiveSessionCard extends StatelessWidget {
     );
   }
 
-  void _showAttendanceQRCode(BuildContext context, Session session) {
-    final programName = _LecturerSessionsScreenState.getProgramName(
-      context,
-      session.program,
-    );
-    final qrData = jsonEncode({
-      'session_id': session.id,
-      'lecturer': session.lecturerUsername,
-      'program': programName,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Attendance QR Code'),
-        content: SizedBox(
-          width: 250,
-          height: 250,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Expanded(
-                child: QrImageView(
-                  data: qrData,
-                  version: QrVersions.auto,
-                  size: 220,
-                  backgroundColor: Colors.white,
-                ),
-              ),
-              SizedBox(height: 10),
-              Text(
-                'Valid for 5 minutes',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Removed old _showAttendanceQRCode dialog logic. Now uses LecturerQrGenerationScreen navigation.
 }
 
 // Helper widget for info rows

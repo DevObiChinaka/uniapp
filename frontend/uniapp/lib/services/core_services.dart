@@ -1,3 +1,4 @@
+import 'package:uniapp/services/ble_service.dart';
 import 'dart:async';
 import 'dart:convert';
 // import 'dart:math'; // Removed unused import
@@ -14,6 +15,8 @@ import '../screens/app_constants.dart';
 import '../models/models.dart';
 
 class CoreServices {
+  // Singleton BLE service for advertising
+  static final BleService _bleService = BleService();
   Future<bool> activateSession(String sessionId) async {
     try {
       // Ensure no double slashes in URL
@@ -30,6 +33,23 @@ class CoreServices {
       debugPrint(
         'ACTIVATE SESSION: Response status: \'${response.statusCode}\', data: \'${response.data}\'',
       );
+      // Start BLE advertising if activation is successful
+      if (response.statusCode == 200) {
+        try {
+          await _bleService.initialize();
+          final payload = jsonEncode({
+            'session_id': sessionId,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          await _bleService.startPeripheralAdvertising(
+            serviceUuid: AppConstants.bleServiceUuid,
+            data: payload,
+          );
+          debugPrint('BLE advertising started for session $sessionId');
+        } catch (e) {
+          debugPrint('BLE advertising error: $e');
+        }
+      }
       return response.statusCode == 200;
     } on DioException catch (e) {
       debugPrint('ACTIVATE SESSION: DioException: ' + e.toString());
