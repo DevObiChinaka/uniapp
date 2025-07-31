@@ -1,8 +1,16 @@
+from .models import Geofence
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog, Program
 
+
+# --- Geofence Serializer ---
+class GeofenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Geofence
+        fields = ['id', 'label', 'latitude', 'longitude', 'radius']
+        
 class ProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = Program
@@ -107,16 +115,22 @@ class SessionSerializer(serializers.ModelSerializer):
 
     id = serializers.SerializerMethodField()
     lecturer_username = serializers.SerializerMethodField()
+    geofence = GeofenceSerializer(read_only=True)
+    geofence_id = serializers.PrimaryKeyRelatedField(
+        queryset=Geofence.objects.all(), source='geofence', write_only=True, required=False, allow_null=True
+    )
 
     class Meta:
         model = Session
-        fields = ['id', 'lecturer', 'lecturer_username', 'program', 'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active', 'current_period']
+        fields = [
+            'id', 'lecturer', 'lecturer_username', 'program', 'start_time', 'end_time',
+            'total_sessions', 'pass_threshold', 'is_active', 'current_period', 'geofence', 'geofence_id'
+        ]
 
     def get_id(self, obj):
         return str(obj.id)
 
     def get_lecturer_username(self, obj):
-        # Return lecturer username as string, fallback to empty string if null
         username = getattr(obj.lecturer, 'username', None)
         return str(username) if username is not None else ''
 

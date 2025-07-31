@@ -8,7 +8,8 @@ class FaceCaptureWidget extends StatefulWidget {
   final Function(Uint8List) onImageCaptured;
   final bool showPreview;
 
-  const FaceCaptureWidget({super.key, 
+  const FaceCaptureWidget({
+    super.key,
     required this.onImageCaptured,
     this.showPreview = true,
   });
@@ -112,31 +113,6 @@ class _FaceCaptureWidgetState extends State<FaceCaptureWidget> {
             child: Icon(Icons.camera_alt),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class BleStatusIndicator extends StatelessWidget {
-  final bool isActive;
-  final String statusText;
-
-  const BleStatusIndicator({super.key, required this.isActive, required this.statusText});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? Colors.green : Colors.grey,
-          ),
-        ),
-        SizedBox(width: 8),
-        Text(statusText),
       ],
     );
   }

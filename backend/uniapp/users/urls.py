@@ -7,6 +7,7 @@ from . import views
 
 
 router = DefaultRouter()
+router.register(r'geofences', views.GeofenceViewSet, basename='geofence')
 router.register(r'programs', views.ProgramViewSet, basename='program')
 router.register(r'sessions', views.SessionViewSet, basename='session')
 router.register(r'attendance', views.AttendanceViewSet, basename='attendance')

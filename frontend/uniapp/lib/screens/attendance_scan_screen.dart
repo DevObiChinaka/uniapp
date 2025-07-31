@@ -180,8 +180,6 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
         userId: widget.universityId,
         sessionId: sessionId,
         faceVerified: true,
-        bleDeviceId: method == 'ble' ? 'beacon_device' : 'qr_code',
-        bleRssi: method == 'ble' ? -50 : 0,
       );
 
       if (!success) {

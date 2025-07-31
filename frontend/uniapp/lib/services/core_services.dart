@@ -1,25 +1,41 @@
-import 'package:uniapp/services/ble_service.dart';
 import 'dart:async';
 import 'dart:convert';
-// import 'dart:math'; // Removed unused import
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
-// import 'package:qr_flutter/qr_flutter.dart'; // Removed unused import
+
 import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/app_constants.dart';
 import '../models/models.dart';
 
 class CoreServices {
-  // Singleton BLE service for advertising
-  static final BleService _bleService = BleService();
-  Future<bool> activateSession(String sessionId) async {
+  /// Delete a session by ID
+  Future<bool> deleteSession(String sessionId) async {
     try {
-      // Ensure no double slashes in URL
+      String base = AppConstants.sessionEndpoint;
+      if (base.endsWith('/')) base = base.substring(0, base.length - 1);
+      final url = '$base/$sessionId/';
+      final response = await _dio.delete(url);
+      debugPrint(
+        'DELETE SESSION: Response status: \'${response.statusCode}\', data: \'${response.data}\'',
+      );
+      return response.statusCode == 204 || response.statusCode == 200;
+    } on DioException catch (e) {
+      debugPrint('DELETE SESSION: DioException: ' + e.toString());
+      _handleApiError(e, 'Session deletion');
+      return false;
+    }
+  }
+
+  // BLE service removed
+  Future<bool> activateSession(
+    String sessionId, {
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
       String base = AppConstants.sessionEndpoint;
       if (base.endsWith('/')) base = base.substring(0, base.length - 1);
       final url = '$base/$sessionId/activate/';
@@ -27,29 +43,21 @@ class CoreServices {
         'ACTIVATE SESSION: Sending POST to: ' +
             url +
             ' with sessionId: ' +
-            sessionId,
+            sessionId +
+            (latitude != null && longitude != null
+                ? ', lat: $latitude, lng: $longitude'
+                : ''),
       );
-      final response = await _dio.post(url);
+      final response = await _dio.post(
+        url,
+        data: {
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
+        },
+      );
       debugPrint(
         'ACTIVATE SESSION: Response status: \'${response.statusCode}\', data: \'${response.data}\'',
       );
-      // Start BLE advertising if activation is successful
-      if (response.statusCode == 200) {
-        try {
-          await _bleService.initialize();
-          final payload = jsonEncode({
-            'session_id': sessionId,
-            'timestamp': DateTime.now().toIso8601String(),
-          });
-          await _bleService.startPeripheralAdvertising(
-            serviceUuid: AppConstants.bleServiceUuid,
-            data: payload,
-          );
-          debugPrint('BLE advertising started for session $sessionId');
-        } catch (e) {
-          debugPrint('BLE advertising error: $e');
-        }
-      }
       return response.statusCode == 200;
     } on DioException catch (e) {
       debugPrint('ACTIVATE SESSION: DioException: ' + e.toString());
@@ -85,12 +93,7 @@ class CoreServices {
   final Dio _dio = Dio();
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final MobileScannerController _qrController = MobileScannerController();
-  final FlutterReactiveBle _flutterReactiveBle = FlutterReactiveBle();
-  StreamSubscription<DiscoveredDevice>? _scanSubscription;
-
-  // BLE State
-  final StreamController<DiscoveredDevice> _bleScanController =
-      StreamController<DiscoveredDevice>.broadcast();
+  // BLE fields removed
 
   // API Configuration
   final String _baseUrl = AppConstants.baseUrl;
@@ -179,48 +182,6 @@ class CoreServices {
     debugPrint('Received notification: [1m[0m${notification.title}');
   }
 
-  // BLE Methods
-  Stream<DiscoveredDevice> scanBleDevices() async* {
-    // Request Bluetooth permissions before scanning
-    await ensureBluetoothPermissions();
-    await for (final device in _flutterReactiveBle.scanForDevices(
-      withServices: [],
-    )) {
-      _bleScanController.add(device);
-      yield device;
-    }
-  }
-
-  Future<void> stopBleScan() async {
-    await _scanSubscription?.cancel();
-    _scanSubscription = null;
-  }
-
-  Future<void> ensureBluetoothPermissions() async {
-    debugPrint('Requesting location permission for BLE...');
-    final locationStatus = await Permission.locationWhenInUse.request();
-    debugPrint('Location permission status: \\${locationStatus}');
-    if (!locationStatus.isGranted) {
-      throw Exception('Location permission denied');
-    }
-
-    debugPrint('Requesting BLE permissions...');
-    final blePermissions = [
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.bluetoothAdvertise,
-    ];
-    final bleStatuses = await blePermissions.request();
-    debugPrint('BLE permissions status: \\${bleStatuses}');
-    if (bleStatuses.values.any((status) => !status.isGranted)) {
-      throw Exception('Bluetooth permissions denied');
-    }
-  }
-
-  // RSSI should be accessed from DiscoveredDevice.rssi in flutter_reactive_ble.
-  // Example usage: device.rssi
-  // Removed getDeviceRssi method as it's not supported.
-
   // QR Methods
   String generateQrPayload() {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -279,8 +240,7 @@ class CoreServices {
     required String userId,
     required String sessionId,
     required bool faceVerified,
-    required String bleDeviceId,
-    required int bleRssi,
+    // BLE parameters removed
   }) async {
     try {
       final response = await _dio.post(
@@ -289,9 +249,7 @@ class CoreServices {
           'user': userId, // ✅ Fixed: user instead of user_id
           'session': sessionId, // ✅ Fixed: session instead of session_id
           'face_verified': faceVerified,
-          'ble_device_id': bleDeviceId,
-          'ble_rssi': bleRssi,
-          'method': 'ble', // ✅ Added: method field
+          'method': 'location', // Updated: use location as method
         },
       );
 
@@ -673,7 +631,7 @@ class CoreServices {
   }
 
   void dispose() {
-    _bleScanController.close();
+    // BLE scan controller removed
     _qrController.dispose();
   }
 

@@ -1,3 +1,5 @@
+from .models import Geofence
+from .serializers import GeofenceSerializer
 from .models import Program
 from .serializers import ProgramSerializer
 from rest_framework import viewsets
@@ -168,12 +170,20 @@ class SessionViewSet(viewsets.ModelViewSet):
         )
         return Response({'status': 'session ended'})
 
+# --- Geofence ViewSet ---
+class GeofenceViewSet(viewsets.ModelViewSet):
+    queryset = Geofence.objects.all()
+    serializer_class = GeofenceSerializer
+    permission_classes = [IsAuthenticated]
+
+
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
     permission_classes = [IsAuthenticated]
 
     def create(self, request):
+        # BLE validation (legacy, can be removed if not needed)
         if request.data.get('ble_rssi', 0) > -70:
             SystemLog.objects.create(
                 log_type='attendance',
@@ -185,14 +195,56 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'error': 'BLE_RANGE_ERROR',
                 'message': 'Device too far away'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        # Geofence validation
         session_id = request.data.get('session')
         session = Session.objects.get(id=session_id)
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        if session.geofence:
+            if latitude is None or longitude is None:
+                return Response({
+                    'error': 'LOCATION_REQUIRED',
+                    'message': 'Latitude and longitude are required for geofenced sessions.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                lat = float(latitude)
+                lng = float(longitude)
+                gf_lat = session.geofence.latitude
+                gf_lng = session.geofence.longitude
+                gf_radius = session.geofence.radius
+                from math import radians, cos, sin, asin, sqrt
+                def haversine(lat1, lon1, lat2, lon2):
+                    # Haversine formula to calculate the distance between two points on the Earth
+                    R = 6371000  # Radius of earth in meters
+                    dlat = radians(lat2 - lat1)
+                    dlon = radians(lon2 - lon1)
+                    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+                    c = 2 * asin(sqrt(a))
+                    return R * c
+                distance = haversine(gf_lat, gf_lng, lat, lng)
+                if distance > gf_radius:
+                    SystemLog.objects.create(
+                        log_type='attendance',
+                        event='Geofence out of range',
+                        user=request.user,
+                        details=f"Distance: {distance:.2f}m, Allowed: {gf_radius}m"
+                    )
+                    return Response({
+                        'error': 'GEOFENCE_OUT_OF_RANGE',
+                        'message': f'You are not within the allowed area. Distance: {distance:.2f}m, Allowed: {gf_radius}m'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({
+                    'error': 'LOCATION_PARSE_ERROR',
+                    'message': str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # Set period to session.current_period
         serializer.save(user=request.user, session=session, period=session.current_period)
-        
+
         SystemLog.objects.create(
             log_type='attendance',
             event='Attendance marked',

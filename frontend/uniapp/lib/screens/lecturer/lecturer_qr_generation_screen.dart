@@ -3,11 +3,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'dart:async';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:uniapp/screens/app_constants.dart';
-import 'package:uniapp/services/ble_service.dart';
-import 'package:uniapp/utils/bluetooth_utils.dart';
-import 'package:uniapp/utils/permission_utils.dart';
+import 'package:uniapp/utils/location_utils.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class LecturerQrGenerationScreen extends StatefulWidget {
   final String sessionId;
@@ -30,62 +30,48 @@ class _LecturerQrGenerationScreenState
   int _secondsLeft = AppConstants.qrTtlSeconds;
   Timer? _refreshTimer;
   Timer? _countdownTimer;
-
-  // BLE state variables
-  bool _isBleEnabled = false;
-  bool _isBleAdvertising = false;
-  BleService? _bleService;
+  double? _lat;
+  double? _lng;
+  bool _isLoading = true;
+  String? _errorMsg;
 
   @override
   void initState() {
     super.initState();
-    _generateQrCode();
-    _startRefreshTimer();
-    _startCountdownTimer();
-    _initializeBleService();
+    debugPrint('QR Screen: initState called');
+    _initAll();
   }
 
-  Future<void> _initializeBleService() async {
-    debugPrint('[BLE] Initializing BLE service...');
-    // Prompt for Bluetooth ON
-    final btOk = await ensureBluetoothOn(context);
-    debugPrint('[BLE] Bluetooth enabled: $btOk');
-    if (!btOk) {
-      setState(() {
-        _isBleEnabled = false;
-      });
-      return;
-    }
-    // Check permissions
-    final permsOk = await ensureBlePermissions(context);
-    debugPrint('[BLE] Permissions granted: $permsOk');
-    if (!permsOk) {
-      setState(() {
-        _isBleEnabled = false;
-      });
-      return;
-    }
-    _bleService = BleService();
-    await _bleService!.initialize();
-    final isAvailable = await _bleService!.isBleAvailable();
-    debugPrint('[BLE] BLE available: $isAvailable');
+  Future<void> _initAll() async {
     setState(() {
-      _isBleEnabled = isAvailable;
+      _isLoading = true;
+      _errorMsg = null;
     });
-    _bleService!.onStatusChange.listen((status) {
-      debugPrint('[BLE] Status changed: $status');
+    debugPrint('QR Screen: Checking location permission...');
+    final status = await Permission.location.request();
+    debugPrint('QR Screen: Permission status: [33m$status[0m');
+    if (!status.isGranted) {
       setState(() {
-        _isBleEnabled = (status == BleStatus.ready);
-        if (!_isBleEnabled && _isBleAdvertising) {
-          debugPrint('[BLE] BLE disabled while advertising, stopping...');
-          _stopBleAdvertising();
-        }
+        _isLoading = false;
+        _errorMsg = 'Location permission denied. Please enable location.';
       });
-    });
-    if (isAvailable) {
-      _startBleAdvertising();
-    } else {
-      debugPrint('[BLE] BLE not available, cannot advertise.');
+      debugPrint('QR Screen: Location permission denied.');
+      return;
+    }
+    try {
+      await _generateQrCodeWithLocation();
+      _startRefreshTimer();
+      _startCountdownTimer();
+      setState(() {
+        _isLoading = false;
+      });
+      debugPrint('QR Screen: Initial QR and location ready.');
+    } catch (e, st) {
+      setState(() {
+        _isLoading = false;
+        _errorMsg = 'Failed to initialize QR code: $e';
+      });
+      debugPrint('QR Screen: Error during init: $e\n$st');
     }
   }
 
@@ -93,21 +79,22 @@ class _LecturerQrGenerationScreenState
   void dispose() {
     _refreshTimer?.cancel();
     _countdownTimer?.cancel();
-    if (_isBleAdvertising) {
-      _stopBleAdvertising();
-    }
-    _bleService?.dispose();
     super.dispose();
   }
 
   void _startRefreshTimer() {
+    _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(
       Duration(seconds: AppConstants.qrTtlSeconds),
-      (_) => _generateQrCode(),
+      (_) async {
+        debugPrint('QR Screen: Auto-refresh triggered');
+        await _handleRefresh();
+      },
     );
   }
 
   void _startCountdownTimer() {
+    _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() {
         _secondsLeft = (_secondsLeft - 1);
@@ -118,115 +105,79 @@ class _LecturerQrGenerationScreenState
     });
   }
 
-  void _generateQrCode() {
+  Future<void> _handleRefresh() async {
+    if (_isLoading) {
+      debugPrint('QR Screen: Refresh blocked, already loading');
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await _generateQrCodeWithLocation();
+      debugPrint('QR Screen: Manual/auto refresh complete');
+    } catch (e, st) {
+      debugPrint('QR Screen: Error during refresh: $e\n$st');
+      setState(() => _errorMsg = 'Failed to refresh QR: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _generateQrCodeWithLocation() async {
+    debugPrint('QR Screen: Generating QR with location...');
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final payload = _createPayload();
-    final signature = _generateSignature(payload, timestamp.toString());
+    double? lat;
+    double? lng;
+    final payloadMap = await _createPayloadMapWithLocation();
+    if (payloadMap['location'] != null) {
+      lat = payloadMap['location']['lat'];
+      lng = payloadMap['location']['lng'];
+      debugPrint('QR Screen: Got location for QR: lat=$lat, lng=$lng');
+    } else {
+      debugPrint('QR Screen: No location in payload');
+    }
+    final signature = _generateSignature(
+      jsonEncode(payloadMap),
+      timestamp.toString(),
+    );
     final qrData = {
-      'payload': payload,
+      'payload': payloadMap,
       'timestamp': timestamp,
       'signature': signature,
     };
     setState(() {
       _qrData = jsonEncode(qrData);
       _secondsLeft = AppConstants.qrTtlSeconds;
+      _lat = lat;
+      _lng = lng;
     });
-    if (_isBleAdvertising && _bleService != null) {
-      _updateBleAdvertisingData(payload);
-    }
   }
 
-  Future<void> _updateBleAdvertisingData(String payload) async {
+  Future<Map<String, dynamic>> _createPayloadMapWithLocation() async {
+    double? lat;
+    double? lng;
     try {
-      await _bleService!.stopPeripheralAdvertising();
-      await _bleService!.startPeripheralAdvertising(
-        serviceUuid: AppConstants.bleServiceUuid,
-        data: payload,
-      );
-    } catch (e) {
-      print('Error updating BLE advertising data: $e');
-    }
-  }
-
-  Future<void> _toggleBleAdvertising(bool enable) async {
-    if (enable && !_isBleAdvertising) {
-      await _startBleAdvertising();
-    } else if (!enable && _isBleAdvertising) {
-      await _stopBleAdvertising();
-    }
-  }
-
-  Future<void> _startBleAdvertising() async {
-    if (_bleService == null) {
-      debugPrint('[BLE] _bleService is null, cannot advertise.');
-      return;
-    }
-    try {
-      final blePayload = _createPayload();
-      debugPrint(
-        '[BLE] Attempting to start advertising with payload: $blePayload',
-      );
-      final success = await _bleService!.startPeripheralAdvertising(
-        serviceUuid: AppConstants.bleServiceUuid,
-        data: blePayload,
-      );
-      debugPrint('[BLE] Advertising result: $success');
-      setState(() {
-        _isBleAdvertising = success;
-      });
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bluetooth proximity attendance is now active'),
-            backgroundColor: Colors.green,
-          ),
+      final position = await LocationUtils.getCurrentLocation();
+      if (position != null) {
+        lat = position.latitude;
+        lng = position.longitude;
+        debugPrint(
+          'QR Screen: Location fetched: lat=\x1b[32m$lat\x1b[0m, lng=\x1b[32m$lng\x1b[0m',
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to activate Bluetooth proximity attendance'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        debugPrint('[BLE] Failed to activate Bluetooth proximity attendance.');
+        debugPrint('QR Screen: LocationUtils returned null');
       }
     } catch (e) {
-      debugPrint('[BLE] Exception during advertising: $e');
-      setState(() {
-        _isBleAdvertising = false;
-      });
+      debugPrint('QR Screen: Error fetching location: $e');
     }
-  }
-
-  Future<void> _stopBleAdvertising() async {
-    if (_bleService == null) return;
-    try {
-      final success = await _bleService!.stopPeripheralAdvertising();
-      setState(() {
-        _isBleAdvertising = !success;
-      });
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bluetooth proximity attendance is now inactive'),
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error stopping BLE advertising: $e');
-    }
-  }
-
-  String _createPayload() {
-    final payload = jsonEncode({
+    final Map<String, dynamic> payloadMap = {
       'session_id': widget.sessionId,
       'program': widget.program,
       'timestamp': DateTime.now().toIso8601String(),
-      'ble_enabled': _isBleAdvertising,
-      'service_uuid': AppConstants.bleServiceUuid,
-      'characteristic_uuid': AppConstants.bleCharacteristicUuid,
-    });
-    return payload;
+    };
+    if (lat != null && lng != null) {
+      payloadMap['location'] = {'lat': lat, 'lng': lng};
+    }
+    return payloadMap;
   }
 
   String _generateSignature(String payload, String timestamp) {
@@ -244,20 +195,132 @@ class _LecturerQrGenerationScreenState
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),
-            onPressed: _generateQrCode,
+            onPressed:
+                (_isLoading || _secondsLeft != AppConstants.qrTtlSeconds)
+                    ? null
+                    : () async {
+                      debugPrint('QR Screen: Manual refresh button pressed');
+                      await _handleRefresh();
+                    },
             tooltip: 'Generate New QR Code',
           ),
         ],
       ),
-      body: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // ...existing code for UI (copy from your current QR screen)...
-          ],
-        ),
+      body: Stack(
+        children: [
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          if (!_isLoading)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16.0),
+              child:
+                  _errorMsg != null
+                      ? Center(
+                        child: Text(
+                          _errorMsg!,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.redAccent,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                      : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          QrImageView(
+                            data: _qrData,
+                            version: QrVersions.auto,
+                            size: 250.0,
+                            backgroundColor: Colors.white,
+                          ),
+                          SizedBox(height: 24),
+                          if (_lat != null && _lng != null)
+                            SizedBox(
+                              height: 180,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Builder(
+                                  builder: (context) {
+                                    debugPrint(
+                                      'QR Screen: Building OSM map widget with lat=$_lat, lng=$_lng',
+                                    );
+                                    return FlutterMap(
+                                      options: MapOptions(
+                                        center: LatLng(_lat!, _lng!),
+                                        zoom: 17,
+                                        interactionOptions:
+                                            const InteractionOptions(
+                                              flags:
+                                                  InteractiveFlag
+                                                      .none, // disables gestures
+                                            ),
+                                      ),
+                                      // Required for flutter_map 6.x+
+                                      children: [
+                                        TileLayer(
+                                          urlTemplate:
+                                              'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                          subdomains: ['a', 'b', 'c'],
+                                          userAgentPackageName:
+                                              'com.example.uniapp',
+                                        ),
+                                        MarkerLayer(
+                                          markers: [
+                                            Marker(
+                                              point: LatLng(_lat!, _lng!),
+                                              width: 40,
+                                              height: 40,
+                                              child: Icon(
+                                                Icons.location_on,
+                                                color: Colors.red,
+                                                size: 40,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          if (_lat == null || _lng == null)
+                            Text(
+                              'Location unavailable. QR will not be location-locked.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.redAccent,
+                              ),
+                            ),
+                          SizedBox(height: 16),
+                          Text(
+                            'QR code refreshes in [32m$_secondsLeft[0m seconds',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'Session: ${widget.sessionId}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            'Program: ${widget.program}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+            ),
+        ],
       ),
     );
   }

@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'app_constants.dart';
@@ -16,8 +13,7 @@ import '../main.dart';
 import '../utils/offline_utils.dart';
 import '../models/sync_status.dart';
 import '../models/face_exception.dart';
-import '../models/mark_attendance_result.dart';
-import '../utils/bluetooth_utils.dart';
+import '../utils/location_utils.dart';
 
 class AppProvider with ChangeNotifier {
   /// Request an emergency exit (for use by emergency_exit_screen)
@@ -57,10 +53,9 @@ class AppProvider with ChangeNotifier {
   ]) async {
     _setLoading(true, 'Updating leave status...');
     try {
-      final statusStr = status.toString().split('.').last;
       final success = await coreServices.updateLeaveStatus(
         leaveRequestId,
-        statusStr,
+        status.value, // Pass string value as required by core_services
         comments ?? '',
       );
       if (success) {
@@ -73,8 +68,9 @@ class AppProvider with ChangeNotifier {
           );
         }
         notifyListeners();
+        return true;
       }
-      return success;
+      return false;
     } catch (e) {
       debugPrint('Error updating leave status: $e');
       return false;
@@ -90,94 +86,6 @@ class AppProvider with ChangeNotifier {
     String? comments,
   ]) async {
     return updateLeaveStatus(leaveRequestId, status, comments);
-  }
-
-  // BLE broadcasting for lecturer's active session
-  final FlutterBlePeripheral _blePeripheral = FlutterBlePeripheral();
-
-  /// Start BLE broadcast for lecturer's active session
-  Future<void> startBleBroadcast({
-    String? sessionId,
-    String? lecturerUsername,
-  }) async {
-    if (_isBroadcasting) {
-      debugPrint('BLE: Already broadcasting');
-      return;
-    }
-    debugPrint(
-      'BLE: Preparing to start advertising. sessionId: $sessionId, lecturerUsername: $lecturerUsername',
-    );
-    String safeSessionId =
-        (sessionId ?? '').isEmpty ? 'unknown' : sessionId ?? '';
-    String safeLecturerUsername =
-        (lecturerUsername ?? '').isEmpty ? 'unknown' : lecturerUsername ?? '';
-    // Ensure both are Strings
-    safeSessionId = safeSessionId.toString();
-    safeLecturerUsername = safeLecturerUsername.toString();
-    if (safeSessionId == 'unknown') {
-      debugPrint('BLE: WARNING - sessionId is missing, using default value');
-    }
-    if (safeLecturerUsername == 'unknown') {
-      debugPrint(
-        'BLE: WARNING - lecturerUsername is missing, using default value',
-      );
-    }
-    debugPrint(
-      'BLE: Starting BLE advertising for session $safeSessionId, lecturer $safeLecturerUsername',
-    );
-    debugPrint(
-      'BLE: manufacturerData = ${utf8.encode('$safeSessionId|$safeLecturerUsername')}',
-    );
-    debugPrint(
-      'BLE: advertiseData = {includeDeviceName: true, serviceUuid: 0000abcd-0000-1000-8000-00805f9b34fb, manufacturerId: 0x1234, manufacturerData: $safeSessionId|$safeLecturerUsername, serviceData: SALMS}',
-    );
-    debugPrint(
-      'BLE: sessionId type = ${safeSessionId.runtimeType}, lecturerUsername type = ${safeLecturerUsername.runtimeType}',
-    );
-    // BLE values are always non-null due to default assignment above
-    try {
-      debugPrint(
-        'BLE: AdvertiseData payload: ' +
-            'includeDeviceName: true, ' +
-            'deviceName: SALMS-Lecturer, ' +
-            'serviceUuid: 0000abcd-0000-1000-8000-00805f9b34fb, ' +
-            'manufacturerId: 0x1234, ' +
-            'manufacturerData: ${utf8.encode('$safeSessionId|$safeLecturerUsername')}, ' +
-            'serviceData: ${utf8.encode('SALMS')}',
-      );
-      await _blePeripheral.start(
-        advertiseData: AdvertiseData(
-          includeDeviceName: true,
-          serviceUuid: '0000abcd-0000-1000-8000-00805f9b34fb',
-          manufacturerId: 0x1234,
-          manufacturerData: utf8.encode('$safeSessionId|$safeLecturerUsername'),
-          serviceData: utf8.encode('SALMS'),
-        ),
-      );
-      _isBroadcasting = true;
-      notifyListeners();
-      debugPrint('BLE: Advertising started');
-    } catch (e, stack) {
-      debugPrint('BLE: Failed to start BLE advertising: $e');
-      debugPrint('BLE: Stack trace: $stack');
-    }
-  }
-
-  /// Stop BLE broadcast for lecturer's active session
-  Future<void> stopBleBroadcast() async {
-    if (!_isBroadcasting) {
-      debugPrint('BLE: Not currently broadcasting');
-      return;
-    }
-    debugPrint('BLE: Stopping BLE advertising');
-    try {
-      await _blePeripheral.stop();
-      _isBroadcasting = false;
-      notifyListeners();
-      debugPrint('BLE: Advertising stopped');
-    } catch (e) {
-      debugPrint('BLE: Failed to stop BLE advertising: $e');
-    }
   }
 
   // Program state
@@ -200,31 +108,37 @@ class AppProvider with ChangeNotifier {
     _setLoading(true, 'Activating session...');
     bool result = false;
     try {
-      // Ensure BLE permissions BEFORE making the POST request
-      try {
-        await coreServices.ensureBluetoothPermissions();
-      } catch (e) {
-        debugPrint('BLE: Permission denied: ' + e.toString());
-        _setLoading(false);
+      // Fetch device location before starting session
+      final position = await LocationUtils.getCurrentLocation();
+      if (position == null) {
+        debugPrint(
+          'ACTIVATE SESSION: Location unavailable. Cannot start session.',
+        );
+        if (navigatorKey.currentContext != null) {
+          ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
+            const SnackBar(
+              content: Text('Location is required to start a session.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
         return false;
       }
+      debugPrint(
+        'ACTIVATE SESSION: Device location: '
+        'Lat: ${position.latitude}, Lng: ${position.longitude}',
+      );
 
-      // Ensure Bluetooth is ON before proceeding
-      // This requires BuildContext, so pass it as an argument to activateSession
-      if (navigatorKey.currentContext != null) {
-        final context = navigatorKey.currentContext!;
-        final bluetoothOn = await ensureBluetoothOn(context);
-        if (!bluetoothOn) {
-          _setLoading(false);
-          return false;
-        }
-      }
-
+      // Pass location to backend if supported (add to API call if needed)
       debugPrint(
         'ACTIVATE SESSION: Calling coreServices.activateSession with sessionId: ' +
             sessionId,
       );
-      final success = await coreServices.activateSession(sessionId);
+      final success = await coreServices.activateSession(
+        sessionId,
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
       debugPrint(
         'ACTIVATE SESSION: coreServices.activateSession returned: ' +
             success.toString(),
@@ -259,9 +173,7 @@ class AppProvider with ChangeNotifier {
             _lecturerUsername ?? getCurrentUser()?.username ?? '';
       }
       if (lecturerUsername.isEmpty) {
-        debugPrint(
-          'ACTIVATE SESSION: ERROR - Lecturer username is missing, cannot enable BLE.',
-        );
+        debugPrint('ACTIVATE SESSION: ERROR - Lecturer username is missing.');
         return false;
       }
 
@@ -285,43 +197,7 @@ class AppProvider with ChangeNotifier {
         );
       }
 
-      // Ensure permissions before BLE
-      try {
-        await coreServices.ensureBluetoothPermissions();
-      } catch (e) {
-        debugPrint('BLE: Permission denied: ' + e.toString());
-        return false;
-      }
-
-      // Start BLE advertising for this session
-      debugPrint(
-        'ACTIVATE SESSION: Starting BLE broadcast for sessionId: ' +
-            sessionId +
-            ', lecturerUsername: ' +
-            lecturerUsername,
-      );
-      await startBleBroadcast(
-        sessionId: sessionId,
-        lecturerUsername: lecturerUsername,
-      );
-
-      // Notify backend that BLE is enabled for this lecturer
-      try {
-        await coreServices.dio.post(
-          '${AppConstants.baseUrl}/ble-status/',
-          data: {
-            'lecturer_username': lecturerUsername,
-            'session_id': sessionId,
-            'ble_enabled': true,
-          },
-        );
-        debugPrint('ACTIVATE SESSION: BLE status updated in backend');
-      } catch (e) {
-        debugPrint(
-          'ACTIVATE SESSION: Failed to update BLE status in backend: ' +
-              e.toString(),
-        );
-      }
+      // BLE broadcast and backend BLE status update removed
       notifyListeners();
       result = true;
     } catch (e) {
@@ -389,11 +265,7 @@ class AppProvider with ChangeNotifier {
   String? _userId;
   String? _currentProgram;
 
-  // BLE state
-  bool _isScanning = false;
-  bool _isBroadcasting = false;
-  List<DiscoveredDevice> _bleDevices = [];
-  StreamSubscription<DiscoveredDevice>? _scanSubscription;
+  // BLE state removed
 
   // Session state
   Session? _activeSession;
@@ -443,8 +315,7 @@ class AppProvider with ChangeNotifier {
   String? get role => _role;
   String? get faceId => _faceId;
   String? get userId => _userId;
-  bool get isScanning => _isScanning;
-  bool get isBleBroadcasting => _isBroadcasting;
+  // BLE scanning getter removed
   bool get inSession => _inSession;
   Session? get activeSession => _activeSession;
   List<Session> get sessions => _sessions;
@@ -462,7 +333,7 @@ class AppProvider with ChangeNotifier {
   List<User> get allStudents => _allStudents;
   List<LeaveRequest> get allLeaveRequests => _allLeaveRequests;
   List<SystemLog> get systemLogs => _systemLogs;
-  List<DiscoveredDevice> get bleDevices => _bleDevices;
+  // BLE device getter removed
 
   // Offline attendance getters
   List<OfflineAttendanceRecord> get pendingOfflineAttendance =>
@@ -534,8 +405,6 @@ class AppProvider with ChangeNotifier {
     try {
       final success = await coreServices.endSession(sessionId);
       if (success) {
-        // Stop BLE broadcast if active
-        await stopBleBroadcast();
         // Optionally refresh sessions or update local state
         String lecturerUsername =
             _lecturerUsername ?? getCurrentUser()?.username ?? '';
@@ -828,8 +697,6 @@ class AppProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    _scanSubscription?.cancel();
-    coreServices.stopBleScan();
     _syncTimer?.cancel();
     super.dispose();
   }
@@ -933,202 +800,9 @@ class AppProvider with ChangeNotifier {
     return null;
   }
 
-  // BLE Methods
-  Future<void> startBleScan() async {
-    if (_isScanning) return;
+  // BLE scan methods removed
 
-    _isScanning = true;
-    _bleDevices = [];
-    notifyListeners();
-
-    final flutterReactiveBle = FlutterReactiveBle();
-    _scanSubscription = flutterReactiveBle
-        .scanForDevices(withServices: [])
-        .listen(
-          (DiscoveredDevice device) {
-            if (!_bleDevices.any((d) => d.id == device.id)) {
-              _bleDevices.add(device);
-              notifyListeners();
-            }
-          },
-          onError: (e) {
-            debugPrint('BLE Scan error: $e');
-            _isScanning = false;
-            notifyListeners();
-          },
-        );
-  }
-
-  Future<void> stopBleScan() async {
-    await _scanSubscription?.cancel();
-    _isScanning = false;
-    notifyListeners();
-  }
-
-  // Attendance marking
-  Future<MarkAttendanceResult> markAttendance(
-    DiscoveredDevice device,
-    String sessionId,
-    int bleRssi,
-  ) async {
-    debugPrint('BLE: markAttendance called with RSSI $bleRssi');
-    if (_faceId == null) {
-      debugPrint('BLE: Face ID not registered');
-      return MarkAttendanceResult(
-        isSuccessful: false,
-        message: 'Face ID not registered. Please register your face first.',
-      );
-    }
-
-    // Enforce BLE RSSI threshold
-    if (bleRssi < AppConstants.bleRssiThreshold) {
-      debugPrint(
-        'BLE: Device out of range (RSSI $bleRssi, threshold ${AppConstants.bleRssiThreshold})',
-      );
-      return MarkAttendanceResult(
-        isSuccessful: false,
-        message: 'BLE_RANGE_ERROR: Device is out of range for attendance.',
-      );
-    }
-
-    _setLoading(true, 'Verifying attendance...');
-    try {
-      // Verify face
-      final verification = await faceService.verifyFace(_faceId!);
-      if (!verification.isIdentical ||
-          verification.confidence < AppConstants.faceConfidenceThreshold) {
-        debugPrint('BLE: Face verification failed');
-        return MarkAttendanceResult(
-          isSuccessful: false,
-          message: 'Face verification failed. Please try again.',
-        );
-      }
-
-      if (_isNetworkAvailable) {
-        try {
-          // Try to mark attendance online first
-          final success = await coreServices.markAttendance(
-            userId: _userId!,
-            sessionId: sessionId,
-            faceVerified: true,
-            bleDeviceId: device.id,
-            bleRssi: bleRssi,
-          );
-
-          if (success) {
-            debugPrint('BLE: Attendance marked successfully online');
-            // Find session to get currentPeriod
-            final session = _sessions.firstWhere(
-              (s) => s.id == sessionId,
-              orElse:
-                  () => Session(
-                    id: sessionId,
-                    lecturerUsername: '',
-                    program: _currentProgram ?? '',
-                    startTime: DateTime.now(),
-                    totalSessions: 1,
-                    passThreshold: 0.7,
-                    isActive: false,
-                    currentPeriod: 1,
-                  ),
-            );
-            _attendanceRecords.add(
-              AttendanceRecord(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                userId: _userId!,
-                sessionId: sessionId,
-                timestamp: DateTime.now(),
-                method: 'BLE+Face',
-                program: _currentProgram,
-                period: session.currentPeriod,
-              ),
-            );
-            _calculateAttendanceStats();
-            notifyListeners();
-            return MarkAttendanceResult(
-              isSuccessful: true,
-              message: 'Attendance marked successfully',
-            );
-          } else {
-            debugPrint('BLE: Failed to mark attendance online');
-            return MarkAttendanceResult(
-              isSuccessful: false,
-              message: 'Failed to mark attendance. Please try again.',
-            );
-          }
-        } catch (networkError) {
-          debugPrint(
-            'BLE: Network error, saving attendance offline: $networkError',
-          );
-        }
-      }
-
-      // If we got here, either there's no network or the online request failed
-      // Save the attendance record offline
-      final recordId = DateTime.now().millisecondsSinceEpoch.toString();
-
-      final offlineRecord = OfflineAttendanceRecord(
-        id: recordId,
-        userId: _userId!,
-        sessionId: sessionId,
-        timestamp: DateTime.now(),
-        method: 'BLE+Face',
-        program: _currentProgram,
-        createdAt: DateTime.now(),
-        extraData: {
-          'face_verified': true,
-          'ble_device_id': device.id,
-          'ble_rssi': bleRssi,
-          'verification_confidence': verification.confidence,
-        },
-      );
-
-      await _addOfflineAttendanceRecord(offlineRecord);
-
-      // Also add to local records for immediate UI update
-      // Find session to get currentPeriod
-      final session = _sessions.firstWhere(
-        (s) => s.id == sessionId,
-        orElse:
-            () => Session(
-              id: sessionId,
-              lecturerUsername: '',
-              program: _currentProgram ?? '',
-              startTime: DateTime.now(),
-              totalSessions: 1,
-              passThreshold: 0.7,
-              isActive: false,
-              currentPeriod: 1,
-            ),
-      );
-      _attendanceRecords.add(
-        offlineRecord.toAttendanceRecord().copyWith(
-          period: session.currentPeriod,
-        ),
-      );
-      _calculateAttendanceStats();
-      notifyListeners();
-
-      // Show offline indicator
-      _showOfflineAttendanceMessage();
-
-      debugPrint('BLE: Attendance saved offline');
-      return MarkAttendanceResult(
-        isSuccessful: true,
-        message:
-            'Attendance saved offline. Will sync when connection is available.',
-        isOffline: true,
-      );
-    } catch (e) {
-      debugPrint('BLE: Attendance error: $e');
-      return MarkAttendanceResult(
-        isSuccessful: false,
-        message: 'Error: ${e.toString()}',
-      );
-    } finally {
-      _setLoading(false);
-    }
-  }
+  // BLE attendance marking method removed
 
   // Manual attendance marking (always uses current active session from backend)
   Future<void> markManualAttendance({
@@ -1180,8 +854,6 @@ class AppProvider with ChangeNotifier {
             sessionId: sessionId,
             faceVerified:
                 false, // Manual attendance doesn't require face verification
-            bleDeviceId: 'manual',
-            bleRssi: 0,
           );
           if (success) {
             _attendanceRecords.add(attendanceRecord);
@@ -1378,7 +1050,7 @@ class AppProvider with ChangeNotifier {
           userId: _userId ?? 'unknown',
           sessionId: sessionId,
           timestamp: DateTime.now().subtract(const Duration(days: 1)),
-          method: 'BLE',
+          method: 'QR',
           program: _currentProgram,
           period: 1,
         ),

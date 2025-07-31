@@ -1,55 +1,71 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
-import 'package:app_settings/app_settings.dart';
-import 'dart:io';
-import 'package:android_intent_plus/android_intent.dart';
-import 'package:android_intent_plus/flag.dart';
-
-Future<void> openBluetoothSettings() async {
-  if (Platform.isAndroid) {
-    final intent = const AndroidIntent(
-      action: 'android.settings.BLUETOOTH_SETTINGS',
-      flags: <int>[Flag.FLAG_ACTIVITY_NEW_TASK],
-    );
-    await intent.launch();
-  } else {
-    AppSettings.openAppSettings();
-  }
-}
 
 Future<bool> ensureBluetoothOn(BuildContext context) async {
   final flutterReactiveBle = FlutterReactiveBle();
-  // Use the current status property to avoid triggering BLE permission request/stream
-  final status = flutterReactiveBle.status;
-  if (status != BleStatus.ready) {
-    // Prompt user to enable Bluetooth before any BLE operation
-    await showDialog<bool>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Bluetooth Required'),
-            content: const Text('Please enable Bluetooth to start a session.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  openBluetoothSettings();
-                  Navigator.of(ctx).pop(false);
-                },
-                child: const Text('Open Settings'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Cancel'),
-              ),
-            ],
-          ),
-    );
-    // After user returns, check again if Bluetooth is enabled
-    final newStatus = flutterReactiveBle.status;
-    if (newStatus != BleStatus.ready) {
-      return false;
+  BleStatus status = flutterReactiveBle.status;
+  int retries = 0;
+  const int maxRetries = 3;
+  const Duration retryDelay = Duration(seconds: 2);
+  // Try up to maxRetries, waiting up to 5 seconds each time
+  while (status != BleStatus.ready && retries < maxRetries) {
+    try {
+      status = await flutterReactiveBle.statusStream
+          .firstWhere(
+            (s) => s == BleStatus.ready,
+            orElse: () => flutterReactiveBle.status,
+          )
+          .timeout(const Duration(seconds: 5), onTimeout: () => status);
+    } catch (_) {}
+    if (status == BleStatus.ready) break;
+    retries++;
+    if (retries < maxRetries) {
+      await Future.delayed(retryDelay);
     }
-    // Optionally, you could add a delay and re-check, or re-prompt if needed
+  }
+  if (status != BleStatus.ready) {
+    final completer = Completer<bool>();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Bluetooth is off. Please enable Bluetooth to start a session.',
+        ),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Try Again',
+          onPressed: () async {
+            // On retry, do another round of status check
+            BleStatus retryStatus = flutterReactiveBle.status;
+            int retryCount = 0;
+            while (retryStatus != BleStatus.ready && retryCount < maxRetries) {
+              try {
+                retryStatus = await flutterReactiveBle.statusStream
+                    .firstWhere(
+                      (s) => s == BleStatus.ready,
+                      orElse: () => flutterReactiveBle.status,
+                    )
+                    .timeout(
+                      const Duration(seconds: 5),
+                      onTimeout: () => retryStatus,
+                    );
+              } catch (_) {}
+              if (retryStatus == BleStatus.ready) break;
+              retryCount++;
+              if (retryCount < maxRetries) {
+                await Future.delayed(retryDelay);
+              }
+            }
+            if (retryStatus == BleStatus.ready) {
+              completer.complete(true);
+            } else {
+              completer.complete(false);
+            }
+          },
+        ),
+      ),
+    );
+    return completer.future;
   }
   return true;
 }

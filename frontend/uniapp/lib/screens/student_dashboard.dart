@@ -18,7 +18,8 @@ class StudentDashboard extends StatefulWidget {
   final String token;
   final String role;
 
-  const StudentDashboard({super.key, 
+  const StudentDashboard({
+    super.key,
     required this.firstName,
     required this.lastName,
     required this.universityId,
@@ -274,7 +275,6 @@ class _StudentDashboardState extends State<StudentDashboard>
     final activeSession = appProvider.activeSession;
     final attendanceRecords = appProvider.attendanceRecords;
     final isLoading = appProvider.isLoading;
-    final bleDevices = appProvider.bleDevices;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -297,83 +297,6 @@ class _StudentDashboardState extends State<StudentDashboard>
               ),
             ),
             SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: Icon(Icons.bluetooth_searching),
-              label: Text('Scan for BLE Devices'),
-              onPressed:
-                  isLoading
-                      ? null
-                      : () async {
-                        await appProvider.startBleScan();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Scanning for BLE devices...'),
-                          ),
-                        );
-                      },
-            ),
-            SizedBox(height: 8),
-            if (bleDevices.isNotEmpty) ...[
-              Text(
-                'Nearby BLE Devices:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              SizedBox(height: 4),
-              SizedBox(
-                height: 120,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: bleDevices.length,
-                  itemBuilder: (context, index) {
-                    final device = bleDevices[index];
-                    return Card(
-                      margin: EdgeInsets.symmetric(horizontal: 4),
-                      child: InkWell(
-                        onTap:
-                            isLoading
-                                ? null
-                                : () async {
-                                  await appProvider.stopBleScan();
-                                  await appProvider.markAttendance(
-                                    device,
-                                    activeSession.id,
-                                    device.rssi,
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Attendance marked for ${device.name.isNotEmpty ? device.name : device.id}',
-                                      ),
-                                    ),
-                                  );
-                                },
-                        child: Container(
-                          width: 160,
-                          padding: EdgeInsets.all(8),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                device.name.isNotEmpty
-                                    ? device.name
-                                    : 'Unknown',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              SizedBox(height: 4),
-                              Text('ID: ${device.id}'),
-                              SizedBox(height: 4),
-                              Text('RSSI: ${device.rssi}'),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              SizedBox(height: 16),
-            ],
             ElevatedButton.icon(
               icon: Icon(Icons.qr_code_scanner),
               label: Text('Scan QR for Attendance'),

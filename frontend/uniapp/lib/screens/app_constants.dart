@@ -14,7 +14,7 @@ class AppConstants {
   static const int bleRssiThreshold = -80; // RSSI value for ~5-10m range
 
   // QR Configuration
-  static const int qrTtlSeconds = 45; // Refresh every 45 seconds
+  static const int qrTtlSeconds = 300; // Refresh every 45 seconds
   static const String hmacSecretKey =
       'a3d7b9e2a1f91bd1c21a746a14e55c4a1c2f387b3f45e2c3f74a2f816b6d5a49';
 
@@ -22,7 +22,7 @@ class AppConstants {
   static const bool enforceVerificationInDebug = false;
 
   // API Configuration
-  static const String baseUrl = 'http://10.132.86.34:8000/api';
+  static const String baseUrl = 'http://172.20.10.11:8000/api';
   static const String faceApiEndpoint =
       'https://facin-api-test.cognitiveservices.azure.com/';
 

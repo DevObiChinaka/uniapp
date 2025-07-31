@@ -14,14 +14,64 @@ class LecturerSessionsScreen extends StatefulWidget {
 }
 
 class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
+  bool _isLoading = false;
+
+  Future<void> _deleteSession(BuildContext context, Session session) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('Delete Session'),
+            content: Text(
+              'Are you sure you want to delete this session? This cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                child: Text('Cancel'),
+                onPressed: () => Navigator.pop(context, false),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: Text('Delete'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      final coreServices =
+          Provider.of<AppProvider>(context, listen: false).coreServices;
+      final success = await coreServices.deleteSession(session.id);
+      setState(() => _isLoading = false);
+      if (success) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Session deleted.')));
+        _refreshSessions();
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to delete session.')));
+      }
+    }
+  }
+
   void _activateSession(BuildContext context, Session session) async {
+    setState(() => _isLoading = true);
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final success = await appProvider.activateSession(session.id);
+    setState(() => _isLoading = false);
     if (success) {
-      // Start BLE beaconing for lecturer's own active session
-      await appProvider.startBleBroadcast();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Session activated and BLE beacon started')),
+        SnackBar(
+          content: Text(
+            'Session activated. Location is now being used for attendance.',
+          ),
+        ),
       );
       _refreshSessions();
     } else {
@@ -56,12 +106,13 @@ class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
           ),
     );
     if (confirmed == true) {
+      setState(() => _isLoading = true);
       final success = await appProvider.endSession(session.id);
+      setState(() => _isLoading = false);
       if (success) {
-        await appProvider.stopBleBroadcast();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Session ended and BLE beacon stopped')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Session ended.')));
         _refreshSessions();
       } else {
         ScaffoldMessenger.of(
@@ -189,87 +240,109 @@ class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _refreshSessions,
-      child: FutureBuilder<List<Session>>(
-        future: _sessionsFuture,
-        builder: (context, snapshot) {
-          if (_sessionsFuture == null ||
-              snapshot.connectionState == ConnectionState.waiting) {
-            debugPrint('LecturerSessionsScreen: Waiting for sessions data...');
-            return Scaffold(
-              appBar: AppBar(title: Text('Sessions')),
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasError) {
-            debugPrint(
-              'LecturerSessionsScreen: Error loading sessions: ${snapshot.error}',
-            );
-            return Scaffold(
-              appBar: AppBar(title: Text('Sessions')),
-              body: Center(child: Text('Error loading sessions')),
-            );
-          }
-          final sessions = snapshot.data ?? [];
-          debugPrint(
-            'LecturerSessionsScreen: API response sessions count: ${sessions.length}',
-          );
-          for (var s in sessions) {
-            debugPrint(
-              'Session: id=${s.id}, program=${s.program}, isActive=${s.isActive}, lecturerUsername=${s.lecturerUsername}',
-            );
-          }
-          if (sessions.isEmpty) {
-            debugPrint(
-              'LecturerSessionsScreen: No sessions found for this lecturer',
-            );
-            return Scaffold(
-              appBar: AppBar(title: Text('Sessions')),
-              body: Center(child: Text('No sessions found for this lecturer')),
-            );
-          }
-          final Session? activeSession =
-              sessions.where((s) => s.isActive).isNotEmpty
-                  ? sessions.firstWhere((s) => s.isActive)
-                  : null;
-          debugPrint(
-            'LecturerSessionsScreen: Active session: ${activeSession?.id ?? "none"}',
-          );
-          return Scaffold(
-            appBar: AppBar(title: Text('Sessions')),
-            body: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (activeSession != null)
-                  _ActiveSessionCard(session: activeSession),
-                SizedBox(height: 16),
-                Text(
-                  'Session History',
-                  style: Theme.of(context).textTheme.titleLarge,
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _refreshSessions,
+          child: FutureBuilder<List<Session>>(
+            future: _sessionsFuture,
+            builder: (context, snapshot) {
+              if (_sessionsFuture == null ||
+                  snapshot.connectionState == ConnectionState.waiting) {
+                debugPrint(
+                  'LecturerSessionsScreen: Waiting for sessions data...',
+                );
+                return Scaffold(
+                  appBar: AppBar(title: Text('Sessions')),
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                debugPrint(
+                  'LecturerSessionsScreen: Error loading sessions: \\${snapshot.error}',
+                );
+                return Scaffold(
+                  appBar: AppBar(title: Text('Sessions')),
+                  body: Center(child: Text('Error loading sessions')),
+                );
+              }
+              final sessions = snapshot.data ?? [];
+              debugPrint(
+                'LecturerSessionsScreen: API response sessions count: \\${sessions.length}',
+              );
+              for (var s in sessions) {
+                debugPrint(
+                  'Session: id=\${s.id}, program=\${s.program}, isActive=\${s.isActive}, lecturerUsername=\${s.lecturerUsername}',
+                );
+              }
+              if (sessions.isEmpty) {
+                debugPrint(
+                  'LecturerSessionsScreen: No sessions found for this lecturer',
+                );
+                return Scaffold(
+                  appBar: AppBar(title: Text('Sessions')),
+                  body: Center(
+                    child: Text('No sessions found for this lecturer'),
+                  ),
+                );
+              }
+              final Session? activeSession =
+                  sessions.where((s) => s.isActive).isNotEmpty
+                      ? sessions.firstWhere((s) => s.isActive)
+                      : null;
+              debugPrint(
+                'LecturerSessionsScreen: Active session: \\${activeSession?.id ?? "none"}',
+              );
+              return Scaffold(
+                appBar: AppBar(title: Text('Sessions')),
+                body: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (activeSession != null)
+                      _ActiveSessionCard(
+                        session: activeSession,
+                        onDeactivate: (s) => _deactivateSession(context, s),
+                      ),
+                    SizedBox(height: 16),
+                    Text(
+                      'Session History',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    SizedBox(height: 8),
+                    ...sessions
+                        .where((s) => !s.isActive)
+                        .map(
+                          (session) => _SessionHistoryCard(
+                            session: session,
+                            onDelete: (s) => _deleteSession(context, s),
+                            onActivate: (s) => _activateSession(context, s),
+                          ),
+                        ),
+                  ],
                 ),
-                SizedBox(height: 8),
-                ...sessions
-                    .where((s) => !s.isActive)
-                    .map((session) => _SessionHistoryCard(session: session)),
-              ],
+              );
+            },
+          ),
+        ),
+        if (_isLoading)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.3),
+              child: Center(child: CircularProgressIndicator()),
             ),
-          );
-        },
-      ),
+          ),
+      ],
     );
   }
 }
 
 class _ActiveSessionCard extends StatelessWidget {
   final Session session;
-  const _ActiveSessionCard({required this.session});
+  final void Function(Session)? onDeactivate;
+  const _ActiveSessionCard({required this.session, this.onDeactivate});
 
   @override
   Widget build(BuildContext context) {
-    final appProvider = Provider.of<AppProvider>(context);
-    final bool isBleActive = appProvider.isBleBroadcasting;
-
     return Card(
       color: Colors.blue[50],
       elevation: 2,
@@ -326,23 +399,22 @@ class _ActiveSessionCard extends StatelessWidget {
                           padding: EdgeInsets.symmetric(horizontal: 6),
                           side: BorderSide.none,
                         ),
-                        if (isBleActive)
-                          Positioned(
-                            right: 4,
-                            top: 4,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: Colors.greenAccent,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 1.5,
-                                ),
+                        Positioned(
+                          right: 4,
+                          top: 4,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Colors.greenAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
                               ),
                             ),
                           ),
+                        ),
                       ],
                     ),
                     SizedBox(width: 6),
@@ -447,17 +519,10 @@ class _ActiveSessionCard extends StatelessWidget {
                     ),
                     textStyle: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  onPressed: () async {
-                    final appProvider = Provider.of<AppProvider>(
-                      context,
-                      listen: false,
-                    );
-                    await appProvider.stopBleBroadcast();
-                    _LecturerSessionsScreenState()._deactivateSession(
-                      context,
-                      session,
-                    );
-                  },
+                  onPressed:
+                      onDeactivate != null
+                          ? () => onDeactivate!(session)
+                          : null,
                 ),
               ],
             ),
@@ -515,7 +580,13 @@ class _InfoRow extends StatelessWidget {
 
 class _SessionHistoryCard extends StatelessWidget {
   final Session session;
-  const _SessionHistoryCard({required this.session});
+  final void Function(Session)? onDelete;
+  final void Function(Session)? onActivate;
+  const _SessionHistoryCard({
+    required this.session,
+    this.onDelete,
+    this.onActivate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -546,29 +617,38 @@ class _SessionHistoryCard extends StatelessWidget {
               'Current Period: Period ${session.currentPeriod} of ${session.totalSessions}',
             ),
             SizedBox(height: 8),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.history),
-                SizedBox(width: 8),
-                OutlinedButton.icon(
-                  icon: Icon(Icons.play_arrow),
-                  label: Text('Start Session'),
-                  onPressed:
-                      () => _LecturerSessionsScreenState()._activateSession(
-                        context,
-                        session,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton.icon(
+                    icon: Icon(Icons.play_arrow),
+                    label: Text('Activate'),
+                    onPressed:
+                        onActivate != null ? () => onActivate!(session) : null,
+                  ),
+                  SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    icon: Icon(Icons.info_outline),
+                    label: Text('Details'),
+                    onPressed:
+                        () => _LecturerSessionsScreenState()
+                            ._showSessionDetailsModal(context, session),
+                  ),
+                  if (onDelete != null) ...[
+                    SizedBox(width: 5),
+                    OutlinedButton.icon(
+                      icon: Icon(Icons.delete),
+                      label: Text(''),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
                       ),
-                ),
-                SizedBox(width: 8),
-                OutlinedButton.icon(
-                  icon: Icon(Icons.info_outline),
-                  label: Text('View Details'),
-                  onPressed:
-                      () => _LecturerSessionsScreenState()
-                          ._showSessionDetailsModal(context, session),
-                ),
-              ],
+                      onPressed: () => onDelete!(session),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
         ),

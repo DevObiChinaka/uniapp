@@ -100,6 +100,19 @@ class User(AbstractUser):
         else:
             raise ValidationError("Role must be student, admin, lecturer, or security.")
 
+
+# --- Geofence model for session-based geofencing ---
+class Geofence(models.Model):
+    label = models.CharField(max_length=100, blank=True, null=True)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    radius = models.FloatField(help_text="Radius in meters")
+
+    def __str__(self):
+        return self.label or f"Geofence ({self.latitude}, {self.longitude})"
+
+
+# Updated Session model with geofence relation
 class Session(models.Model):
     lecturer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
     program = models.ForeignKey(Program, on_delete=models.CASCADE)
@@ -109,6 +122,7 @@ class Session(models.Model):
     pass_threshold = models.FloatField(default=0.7)
     is_active = models.BooleanField(default=False)
     current_period = models.IntegerField(default=0, help_text="Current attendance period/cycle.")
+    geofence = models.OneToOneField(Geofence, on_delete=models.SET_NULL, blank=True, null=True, related_name='session')
 
     def __str__(self):
         return f"Session {self.id} ({self.program}) - Active: {self.is_active}"
