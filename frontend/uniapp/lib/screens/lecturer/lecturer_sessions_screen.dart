@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_provider.dart';
 import '../../models/models.dart';
-import '../../models/program.dart';
+import '../../models/program.dart' as prog;
 import '../../utils/utils.dart';
 import 'package:uniapp/screens/lecturer/lecturer_qr_generation_screen.dart';
 
@@ -87,8 +87,8 @@ class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text('End Session'),
-            content: Text('Are you sure you want to end this session?'),
+            title: Text('Stop Session'),
+            content: Text('Are you sure you want to stop this session?'),
             actions: [
               TextButton(
                 child: Text('Cancel'),
@@ -173,7 +173,7 @@ class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final programObj = appProvider.programs.firstWhere(
       (p) => p.id.toString() == programId,
-      orElse: () => Program(id: 0, name: programId),
+      orElse: () => prog.Program(id: 0, name: programId),
     );
     return programObj.name;
   }
@@ -205,7 +205,10 @@ class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
       setState(() {
         _sessionsFuture =
             lecturerUsername.isNotEmpty
-                ? appProvider.fetchLecturerSessions(lecturerUsername)
+                ? appProvider.coreServices.getSessions(
+                  lecturerUsername,
+                  isStudent: false,
+                )
                 : Future.value([]);
       });
     })();
@@ -233,7 +236,10 @@ class _LecturerSessionsScreenState extends State<LecturerSessionsScreen> {
     setState(() {
       _sessionsFuture =
           lecturerUsername.isNotEmpty
-              ? appProvider.fetchLecturerSessions(lecturerUsername)
+              ? appProvider.coreServices.getSessions(
+                lecturerUsername,
+                isStudent: false,
+              )
               : Future.value([]);
     });
   }
@@ -385,11 +391,6 @@ class _ActiveSessionCard extends StatelessWidget {
                               ),
                               SizedBox(width: 4),
                             ],
-                          ),
-                          avatar: Icon(
-                            Icons.circle,
-                            size: 13,
-                            color: Colors.white,
                           ),
                           backgroundColor: Colors.green,
                           labelStyle: TextStyle(color: Colors.white),

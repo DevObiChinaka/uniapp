@@ -314,7 +314,7 @@ class _AdminDashboardState extends State<AdminDashboard>
           children: [
             Text('ID: ${student.universityId ?? 'No ID'}'),
             SizedBox(height: 4),
-            Text(student.program ?? 'No program'),
+            Text(student.program?.name ?? 'No program'),
             SizedBox(height: 4),
             Text(
               student.isOnCampus ? 'on-campus' : 'off-campus',

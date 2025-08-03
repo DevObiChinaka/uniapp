@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_provider.dart';
 import '../../models/models.dart';
-import '../../models/program.dart';
+import '../../models/program.dart' as prog;
 
 class LecturerDashboard extends StatefulWidget {
   const LecturerDashboard({super.key});
@@ -47,9 +47,9 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
     String getProgramName(String programId) {
       final programObj = appProvider.programs.firstWhere(
         (p) => p.id.toString() == programId,
-        orElse: () => Program(id: 0, name: programId),
+        orElse: () => prog.Program(id: 0, name: ''),
       );
-      return programObj.name;
+      return programObj.name.isNotEmpty ? programObj.name : programId;
     }
 
     return RefreshIndicator(

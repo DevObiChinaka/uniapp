@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:provider/provider.dart';
 import '../screens/app_provider.dart';
 import '../widgets/face_capture_widget.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'dart:io';
 
 class FaceVerificationScreen extends StatefulWidget {
@@ -69,12 +70,18 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen>
     });
 
     try {
-      // Simulate face verification process
-      await Future.delayed(Duration(seconds: 2));
+      // Use Google ML Kit for face detection
+      final inputImage = InputImage.fromFilePath(image.path);
+      final options = FaceDetectorOptions(
+        enableContours: false,
+        enableLandmarks: false,
+        performanceMode: FaceDetectorMode.fast,
+      );
+      final faceDetector = FaceDetector(options: options);
+      final faces = await faceDetector.processImage(inputImage);
+      await faceDetector.close();
 
-      // In a real app, this would use actual face verification
-      // For demo purposes, simulate random success/failure with high success rate
-      final success = DateTime.now().millisecond % 10 != 0; // 90% success rate
+      final success = faces.isNotEmpty;
       final faceId =
           provider.userId ?? 'face_${DateTime.now().millisecondsSinceEpoch}';
 

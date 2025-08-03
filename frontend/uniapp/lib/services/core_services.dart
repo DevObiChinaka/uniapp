@@ -240,16 +240,19 @@ class CoreServices {
     required String userId,
     required String sessionId,
     required bool faceVerified,
-    // BLE parameters removed
+    double? latitude,
+    double? longitude,
   }) async {
     try {
       final response = await _dio.post(
         AppConstants.attendanceEndpoint,
         data: {
-          'user': userId, // ✅ Fixed: user instead of user_id
-          'session': sessionId, // ✅ Fixed: session instead of session_id
+          'user_id': userId,
+          'session': sessionId,
           'face_verified': faceVerified,
-          'method': 'location', // Updated: use location as method
+          'method': 'location',
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
         },
       );
 
@@ -295,11 +298,18 @@ class CoreServices {
     }
   }
 
-  Future<List<Session>> getSessions(String userId) async {
+  Future<List<Session>> getSessions(
+    String userId, {
+    required bool isStudent,
+  }) async {
     try {
+      Map<String, dynamic>? queryParams;
+      if (!isStudent) {
+        queryParams = {'username': userId};
+      }
       final response = await _dio.get(
         AppConstants.sessionEndpoint,
-        queryParameters: {'username': userId},
+        queryParameters: queryParams,
       );
 
       return (response.data as List)

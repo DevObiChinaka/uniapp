@@ -5,6 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uniapp/screens/app_constants.dart';
 
 class ApiService {
+  static Future<http.Response> get(String endpoint) async {
+    final url = Uri.parse(baseUrl + _ensureTrailingSlash(endpoint));
+    return await http.get(url, headers: {'Content-Type': 'application/json'});
+  }
+
   static const String baseUrl = AppConstants.baseUrl;
 
   static String _ensureTrailingSlash(String endpoint) {

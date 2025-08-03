@@ -175,9 +175,9 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen>
   ) async {
     try {
       final provider = Provider.of<AppProvider>(context, listen: false);
-
+      final userId = widget.universityId;
       final success = await provider.coreServices.markAttendance(
-        userId: widget.universityId,
+        userId: userId,
         sessionId: sessionId,
         faceVerified: true,
       );

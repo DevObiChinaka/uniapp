@@ -3,7 +3,10 @@ import 'package:go_router/go_router.dart';
 import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/edit_profile_screen.dart';
-import '../screens/student_dashboard.dart';
+import '../screens/student/dashboard_screen.dart' as student;
+import '../screens/student/attendance_screen.dart' as student;
+import '../screens/student/exit_screen.dart' as student;
+import '../screens/student/profile_screen.dart' as student;
 import '../screens/lecturer/lecturer_home.dart';
 import '../screens/security_dashboard.dart';
 import '../screens/admin/admin_home.dart';
@@ -43,25 +46,26 @@ class AppRouter {
           return EditProfileScreen(userId: userId);
         },
       ),
+      // GoRoute(
+      //   path: '/student/dashboard',
+      //   builder: (context, state) => const student.DashboardScreen(),
+      // ),
+      GoRoute(
+        path: '/student/attendance',
+        builder: (context, state) => const student.AttendanceScreen(),
+      ),
+      // Student exit route is commented out for now. Uncomment when backend and UI are ready.
+      // GoRoute(
+      //   path: '/student/exit',
+      //   builder: (context, state) => const student.ExitScreen(),
+      // ),
+      GoRoute(
+        path: '/student/profile',
+        builder: (context, state) => const student.ProfileScreen(),
+      ),
       GoRoute(
         path: routes.AppRoutes.studentDashboard,
-        builder: (context, state) {
-          final Map<String, dynamic> extra =
-              state.extra as Map<String, dynamic>? ?? {};
-          final firstName = extra['firstName'] as String? ?? '';
-          final lastName = extra['lastName'] as String? ?? '';
-          final universityId = extra['universityId'] as String? ?? '';
-          final token = extra['token'] as String? ?? '';
-          final role = extra['role'] as String? ?? '';
-
-          return StudentDashboard(
-            firstName: firstName,
-            lastName: lastName,
-            universityId: universityId,
-            token: token,
-            role: role,
-          );
-        },
+        builder: (context, state) => const student.StudentHome(),
       ),
       GoRoute(
         path: routes.AppRoutes.lecturerDashboard,

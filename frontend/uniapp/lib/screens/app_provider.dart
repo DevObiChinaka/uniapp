@@ -7,7 +7,7 @@ import 'app_constants.dart';
 import '../services/core_services.dart';
 import '../services/face_service.dart' hide FaceException;
 import '../models/models.dart' hide SyncStatus;
-import '../models/program.dart';
+import '../models/program.dart' as prog;
 import '../services/session_service.dart';
 import '../main.dart';
 import '../utils/offline_utils.dart';
@@ -16,6 +16,70 @@ import '../models/face_exception.dart';
 import '../utils/location_utils.dart';
 
 class AppProvider with ChangeNotifier {
+  /// Fetch the active session for the current student (program/level)
+  Future<void> fetchActiveSession() async {
+    try {
+      final user = getCurrentUser();
+      final userId = user?.universityId ?? _userId;
+      final program = user?.program;
+      final level =
+          user?.level ??
+          (user != null && user.toJson().containsKey('level')
+              ? user.toJson()['level']
+              : null);
+      debugPrint('[AppProvider] Student program from profile: \\${program}');
+      if (userId == null || program == null)
+        throw Exception('User, program, or level missing');
+      final sessions = await coreServices.getSessions(userId, isStudent: true);
+      debugPrint('[AppProvider] Backend returned sessions:');
+      for (var s in sessions) {
+        debugPrint(
+          '  id: \\${s.id}, program: \\${s.program}, level: \\${s.level}, isActive: \\${s.isActive}, lecturer: \\${s.lecturerUsername}',
+        );
+      }
+      debugPrint(
+        '[AppProvider] Filtering for program: \\${program}, level: \\${level}',
+      );
+      final filtered =
+          sessions.where((s) {
+            final programMatch = s.program == program;
+            final levelMatch = (level == null || s.level == level);
+            if (!programMatch || !levelMatch) {
+              debugPrint(
+                '  Skipping session id=\\${s.id}: programMatch=\\${programMatch}, levelMatch=\\${levelMatch}',
+              );
+            }
+            return programMatch && levelMatch;
+          }).toList();
+      debugPrint('[AppProvider] Filtered sessions count: \\${filtered.length}');
+      _sessions = filtered;
+      _activeSession = filtered.isNotEmpty ? filtered.first : null;
+      if (_activeSession != null) {
+        debugPrint(
+          '[AppProvider] Active session selected: id=\\${_activeSession!.id}',
+        );
+      } else {
+        debugPrint('[AppProvider] No active session found after filtering.');
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching active session: $e');
+    }
+  }
+
+  /// Fetch attendance history for the current student
+  Future<void> fetchAttendanceHistory() async {
+    try {
+      final userId = getCurrentUser()?.universityId ?? _userId;
+      if (userId == null) throw Exception('User ID missing');
+      final records = await coreServices.getAttendanceRecords(userId);
+      _attendanceRecords = records;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching attendance history: $e');
+    }
+  }
+
   /// Request an emergency exit (for use by emergency_exit_screen)
   Future<bool> requestEmergencyExit({
     required String userId,
@@ -89,14 +153,23 @@ class AppProvider with ChangeNotifier {
   }
 
   // Program state
-  List<Program> _programs = [];
-  List<Program> get programs => _programs;
+  List<prog.Program> _programs = [];
+  List<prog.Program> get programs => _programs;
 
   Future<void> fetchPrograms() async {
     try {
       final response = await coreServices.dio.get('/programs/');
       final data = response.data as List;
-      _programs = data.map((e) => Program.fromJson(e)).toList();
+      _programs =
+          data.map((e) {
+            if (e is Map<String, dynamic>) {
+              return prog.Program.fromJson(e);
+            } else if (e is Map) {
+              return prog.Program.fromJson(Map<String, dynamic>.from(e));
+            } else {
+              throw Exception('Invalid program data format');
+            }
+          }).toList();
       notifyListeners();
     } catch (e) {
       debugPrint('Failed to fetch programs: $e');
@@ -285,6 +358,8 @@ class AppProvider with ChangeNotifier {
   // Notification state
   List<AppNotification> _notifications = [];
 
+  // Returns the current user object
+
   // Gate exit state
   bool _isExitProcessing = false;
   ExitResult? _lastExitResult;
@@ -324,6 +399,19 @@ class AppProvider with ChangeNotifier {
   List<AttendanceRecord> get attendanceRecords => _attendanceRecords;
   Map<String, int> get attendanceStats => _attendanceStats;
   List<LeaveRequest> get leaveRequests => _leaveRequests;
+
+  Future<void> fetchLeaveRequests() async {
+    try {
+      final userId = getCurrentUser()?.universityId ?? _userId;
+      if (userId == null) throw Exception('User ID missing');
+      final requests = await coreServices.getLeaveRequests(userId);
+      _leaveRequests = requests;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching leave requests: $e');
+    }
+  }
+
   bool get isSubmittingLeave => _isSubmittingLeave;
   List<AppNotification> get notifications => _notifications;
   bool get isExitProcessing => _isExitProcessing;
@@ -363,6 +451,8 @@ class AppProvider with ChangeNotifier {
     required String program,
     required int totalSessions,
     required double passThreshold,
+    required String level,
+    required String courseId,
   }) async {
     _setLoading(true, 'Creating session...');
     try {
@@ -373,6 +463,8 @@ class AppProvider with ChangeNotifier {
         startTime: DateTime.now(),
         totalSessions: totalSessions,
         passThreshold: passThreshold,
+        level: level,
+        courseId: courseId,
       );
       final success = await coreServices.createSession(session);
       return success ? 'success' : '';
@@ -390,7 +482,7 @@ class AppProvider with ChangeNotifier {
     try {
       // Use username for session fetch
       final username = getCurrentUser()?.username ?? lecturerUsername;
-      return await coreServices.getSessions(username);
+      return await coreServices.getSessions(username, isStudent: false);
     } catch (e) {
       debugPrint('Error fetching lecturer sessions: $e');
       return [];

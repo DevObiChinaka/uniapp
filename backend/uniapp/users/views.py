@@ -20,22 +20,64 @@ from django.conf import settings
 import hashlib
 import hmac
 import json
-from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
+
+from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog, Course
 from .serializers import (
     UserSerializer, SessionSerializer, AttendanceSerializer,
     LeaveRequestSerializer, ExitLogSerializer, SystemLogSerializer,
-    UserRegistrationSerializer, FCMTokenSerializer
+    UserRegistrationSerializer, FCMTokenSerializer, CourseSerializer
 )
+# --- Course ViewSet ---
+from rest_framework import filters
+class CourseViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Course.objects.all()
+    serializer_class = CourseSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['program__id', 'level']
+
+    def get_queryset(self):
+        queryset = Course.objects.all()
+        program_ids = self.request.query_params.get('programs')
+        level = self.request.query_params.get('level')
+        if program_ids:
+            # Accept comma-separated list of IDs
+            try:
+                id_list = [int(pid) for pid in program_ids.split(',') if pid.strip().isdigit()]
+                queryset = queryset.filter(programs__id__in=id_list).distinct()
+            except Exception:
+                pass
+        if level:
+            queryset = queryset.filter(level=level)
+        return queryset
 
 User = get_user_model()
 
 # ====================== ViewSets ======================
 class SessionViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
-        username = request.query_params.get('username')
+        user = request.user
         queryset = self.get_queryset()
-        if username:
-            queryset = queryset.filter(lecturer__username=username)
+        # For students, filter sessions by program and level, and only active sessions
+        if user.role == 'student':
+            user_program = getattr(user, 'program', None)
+            user_level = getattr(user, 'level', None)
+            # Ensure user_program is a Program instance
+            from .models import Program
+            if user_program and isinstance(user_program, str):
+                user_program_obj = Program.objects.filter(name=user_program).first()
+                user_program = user_program_obj
+            if user_program and user_level:
+                queryset = queryset.filter(
+                    course__programs=user_program,
+                    course__level=user_level,
+                    is_active=True
+                )
+        else:
+            # For staff/admin, filter by username if provided
+            username = request.query_params.get('username')
+            if username:
+                queryset = queryset.filter(lecturer__username=username)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     queryset = Session.objects.all()
@@ -49,7 +91,8 @@ class SessionViewSet(viewsets.ModelViewSet):
         print(f"[SessionViewSet.create] Incoming data: {request.data}")
 
         active_sessions = Session.objects.filter(
-            program=request.data.get('program'),
+            course_id=request.data.get('course_id'),
+            level=request.data.get('level'),
             end_time__isnull=True
         )
         # You may want to block creation if a session is already active for this program
@@ -68,18 +111,28 @@ class SessionViewSet(viewsets.ModelViewSet):
         else:
             lecturer = request.user
 
+        # Handle geofence data
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        radius = request.data.get('radius')
+        geofence_obj = None
+        if latitude and longitude and radius:
+            from .models import Geofence
+            geofence_obj = Geofence.objects.create(latitude=latitude, longitude=longitude, radius=radius)
+
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             logger.debug(f"[SessionViewSet.create] Validated data: {serializer.validated_data}")
             print(f"[SessionViewSet.create] Validated data: {serializer.validated_data}")
-            serializer.save(lecturer=lecturer)
+            # Save session with geofence if available
+            session = serializer.save(lecturer=lecturer, geofence=geofence_obj)
 
             SystemLog.objects.create(
                 log_type='system',
                 event='Session started',
                 user=lecturer,
-                details=f"Session {serializer.data['id']} started"
+                details=f"Session {session.id} started"
             )
             logger.info(f"Session created successfully: {serializer.data}")
             print(f"Session created successfully: {serializer.data}")
@@ -102,9 +155,10 @@ class SessionViewSet(viewsets.ModelViewSet):
             print(f"[SessionViewSet.activate] PERMISSION_DENIED: user={request.user} is not session lecturer={session.lecturer}")
             return Response({'error': 'PERMISSION_DENIED', 'message': 'You do not own this session.'}, status=status.HTTP_403_FORBIDDEN)
         from django.utils import timezone
+        # Allow re-activation as long as scheduled end_time is in the future
         if session.end_time is not None and session.end_time <= timezone.now():
-            logger.debug(f"[SessionViewSet.activate] SESSION_ALREADY_ENDED: end_time={session.end_time} (<= now)")
-            print(f"[SessionViewSet.activate] SESSION_ALREADY_ENDED: end_time={session.end_time} (<= now)")
+            logger.debug(f"[SessionViewSet.activate] SESSION_ALREADY_ENDED: scheduled end_time={session.end_time} (<= now)")
+            print(f"[SessionViewSet.activate] SESSION_ALREADY_ENDED: scheduled end_time={session.end_time} (<= now)")
             return Response({'error': 'SESSION_ALREADY_ENDED', 'message': 'Session already ended.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Increment current_period
@@ -113,7 +167,7 @@ class SessionViewSet(viewsets.ModelViewSet):
         # If current_period >= total_sessions, close session
         if session.current_period >= session.total_sessions:
             session.is_active = False
-            session.end_time = timezone.now()
+            session.actual_end_time = timezone.now()
             logger.debug(f"[SessionViewSet.activate] Session permanently ended: current_period={session.current_period}, total_sessions={session.total_sessions}")
             print(f"[SessionViewSet.activate] Session permanently ended: current_period={session.current_period}, total_sessions={session.total_sessions}")
         else:
@@ -157,11 +211,11 @@ class SessionViewSet(viewsets.ModelViewSet):
         session = self.get_object()
         logger.debug(f"[SessionViewSet.end] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
         print(f"[SessionViewSet.end] Session object: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
-        session.end_time = timezone.now()
+        session.actual_end_time = timezone.now()
         session.is_active = False
         session.save()
-        logger.debug(f"[SessionViewSet.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
-        print(f"[SessionViewSet.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
+        logger.debug(f"[SessionViewSet.end] Session updated: id={session.id}, is_active={session.is_active}, actual_end_time={session.actual_end_time}")
+        print(f"[SessionViewSet.end] Session updated: id={session.id}, is_active={session.is_active}, actual_end_time={session.actual_end_time}")
         SystemLog.objects.create(
             log_type='system',
             event='Session ended',
@@ -284,11 +338,24 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'lecturer':
-            return Attendance.objects.filter(session__lecturer=user)
-        elif user.role == 'admin':
-            return Attendance.objects.all()
-        return Attendance.objects.none()
+        queryset = Attendance.objects.all()
+        user_id = self.request.query_params.get('user_id')
+        username = self.request.query_params.get('username')
+        if user_id:
+            queryset = queryset.filter(user__university_id=user_id)
+        elif username:
+            queryset = queryset.filter(session__lecturer__username=username)
+        else:
+            # Fallback to user role-based filtering
+            if user.role == 'student':
+                queryset = queryset.filter(user=user)
+            elif user.role == 'lecturer':
+                queryset = queryset.filter(session__lecturer=user)
+            elif user.role == 'admin':
+                queryset = queryset.all()
+            else:
+                queryset = queryset.none()
+        return queryset
 class LeaveRequestViewSet(viewsets.ModelViewSet):
     queryset = LeaveRequest.objects.all()
     serializer_class = LeaveRequestSerializer
@@ -573,6 +640,10 @@ def biometric_login(request):
 def profile_view(request):
     user = request.user
     if request.method == 'GET':
+        from .serializers import ProgramSerializer
+        program_data = None
+        if getattr(user, 'program', None):
+            program_data = ProgramSerializer(user.program).data
         return Response({
             'id': user.id,
             'name': user.get_full_name(),
@@ -582,7 +653,7 @@ def profile_view(request):
             'email': user.email,
             'university_id': user.university_id,
             'role': getattr(user, 'role', None),
-            'program': getattr(user, 'program', None),
+            'program': program_data,
             'profile_picture_url': getattr(user, 'profile_picture_url', None),
             'is_on_campus': getattr(user, 'is_on_campus', None),
             'campus_tag': getattr(user, 'campus_tag', None),
@@ -593,7 +664,7 @@ def profile_view(request):
         last_name = request.data.get('last_name')
         profile_picture = request.data.get('profile_picture')
         email = request.data.get('email')
-        program = request.data.get('program')
+        program_id = request.data.get('program')
         if first_name:
             user.first_name = first_name
         if last_name:
@@ -602,9 +673,20 @@ def profile_view(request):
             user.profile_picture_url = profile_picture
         if email:
             user.email = email
-        if program and hasattr(user, 'program'):
-            user.program = program
+        if program_id:
+            # Set program using ID
+            from .models import Program
+            try:
+                program_obj = Program.objects.get(id=program_id)
+                user.program = program_obj
+            except Program.DoesNotExist:
+                pass
         user.save()
+        # Always serialize program as nested object
+        from .serializers import ProgramSerializer
+        program_data = None
+        if getattr(user, 'program', None):
+            program_data = ProgramSerializer(user.program).data
         return Response({
             'id': user.id,
             'name': user.get_full_name(),
@@ -614,7 +696,7 @@ def profile_view(request):
             'email': user.email,
             'university_id': user.university_id,
             'role': getattr(user, 'role', None),
-            'program': getattr(user, 'program', None),
+            'program': program_data,
             'profile_picture_url': getattr(user, 'profile_picture_url', None),
             'is_on_campus': getattr(user, 'is_on_campus', None),
             'campus_tag': getattr(user, 'campus_tag', None),
@@ -694,11 +776,11 @@ class SessionActionView(viewsets.ViewSet):
             print(f"[SessionActionView.end] Session already ended (is_active is False)!")
             return Response({'error': 'Session already ended'}, status=400)
         # Allow ending if is_active is True, regardless of end_time
-        session.end_time = timezone.now()
+        session.actual_end_time = timezone.now()
         session.is_active = False
         session.save()
-        logger.debug(f"[SessionActionView.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
-        print(f"[SessionActionView.end] Session updated: id={session.id}, is_active={session.is_active}, end_time={session.end_time}")
+        logger.debug(f"[SessionActionView.end] Session updated: id={session.id}, is_active={session.is_active}, actual_end_time={session.actual_end_time}")
+        print(f"[SessionActionView.end] Session updated: id={session.id}, is_active={session.is_active}, actual_end_time={session.actual_end_time}")
         SystemLog.objects.create(
             log_type='system',
             event='Session ended',

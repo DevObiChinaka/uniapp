@@ -1,8 +1,100 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import 'dart:convert';
 import '../utils/utils.dart';
+
+@immutable
+class Program {
+  final String id;
+  final String name;
+  final String? code;
+  final String? department;
+
+  const Program({
+    required this.id,
+    required this.name,
+    this.code,
+    this.department,
+  });
+
+  factory Program.fromJson(Map<String, dynamic> json) {
+    return Program(
+      id: json['id'].toString(),
+      name: json['name'] as String,
+      code: json['code'] as String?,
+      department: json['department'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'code': code,
+      'department': department,
+    };
+  }
+
+  Program copyWith({
+    String? id,
+    String? name,
+    String? code,
+    String? department,
+  }) {
+    return Program(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      code: code ?? this.code,
+      department: department ?? this.department,
+    );
+  }
+}
+
+@immutable
+class Geofence {
+  final double latitude;
+  final double longitude;
+  final double radius;
+  final String? id;
+
+  const Geofence({
+    required this.latitude,
+    required this.longitude,
+    this.radius = 50.0,
+    this.id,
+  });
+
+  factory Geofence.fromJson(Map<String, dynamic> json) {
+    return Geofence(
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      radius: (json['radius'] as num?)?.toDouble() ?? 50.0,
+      id: json['id']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'latitude': latitude,
+      'longitude': longitude,
+      'radius': radius,
+      if (id != null) 'id': id,
+    };
+  }
+
+  Geofence copyWith({
+    double? latitude,
+    double? longitude,
+    double? radius,
+    String? id,
+  }) {
+    return Geofence(
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      radius: radius ?? this.radius,
+      id: id ?? this.id,
+    );
+  }
+}
 
 @immutable
 class User {
@@ -10,7 +102,7 @@ class User {
   final String name;
   final String role;
   final String? faceId;
-  final String? program;
+  final Program? program;
   final String? campusTag;
   final bool isOnCampus;
   final String? universityId;
@@ -34,7 +126,9 @@ class User {
     this.firstName,
     this.lastName,
     this.email,
+    this.level,
   });
+  final String? level;
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
@@ -42,7 +136,9 @@ class User {
       name: json['name'] as String,
       role: json['role'] as String,
       faceId: json['face_id'] as String?,
-      program: json['program'] as String?,
+      program: json['program'] != null && json['program'] is Map<String, dynamic>
+          ? Program.fromJson(json['program'] as Map<String, dynamic>)
+          : null,
       campusTag: json['campus_tag'] as String?,
       isOnCampus: json['is_on_campus'] as bool? ?? false,
       universityId: json['university_id'] as String?,
@@ -53,6 +149,7 @@ class User {
       firstName: json['first_name'] as String?,
       lastName: json['last_name'] as String?,
       email: json['email'] as String?,
+      level: json['level'] as String?,
     );
   }
 
@@ -62,7 +159,7 @@ class User {
       'name': name,
       'role': role,
       'face_id': faceId,
-      'program': program,
+      'program': program?.toJson(),
       'campus_tag': campusTag,
       'is_on_campus': isOnCampus,
       'university_id': universityId,
@@ -71,6 +168,7 @@ class User {
       'first_name': firstName,
       'last_name': lastName,
       'email': email,
+      'level': level,
     };
   }
 
@@ -79,7 +177,7 @@ class User {
     String? name,
     String? role,
     String? faceId,
-    String? program,
+    Program? program,
     String? campusTag,
     bool? isOnCampus,
     String? universityId,
@@ -88,6 +186,7 @@ class User {
     String? firstName,
     String? lastName,
     String? email,
+    String? level,
   }) {
     return User(
       id: id ?? this.id,
@@ -103,6 +202,7 @@ class User {
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
+      level: level ?? this.level,
     );
   }
 }
@@ -183,6 +283,9 @@ class Session {
     int? totalSessions,
     double? passThreshold,
     bool? isActive,
+    String? level,
+    String? courseId,
+    Geofence? geofence,
   }) {
     return Session(
       id: id ?? this.id,
@@ -193,6 +296,10 @@ class Session {
       totalSessions: totalSessions ?? this.totalSessions,
       passThreshold: passThreshold ?? this.passThreshold,
       isActive: isActive ?? this.isActive,
+      level: level ?? this.level,
+      courseId: courseId ?? this.courseId,
+      currentPeriod: currentPeriod,
+      geofence: geofence ?? this.geofence,
     );
   }
 
@@ -205,6 +312,9 @@ class Session {
   final double passThreshold;
   final bool isActive;
   final int currentPeriod;
+  final String? level;
+  final String? courseId;
+  final Geofence? geofence;
 
   const Session({
     required this.id,
@@ -216,6 +326,9 @@ class Session {
     this.passThreshold = 0.7,
     this.isActive = false,
     this.currentPeriod = 0,
+    this.level,
+    this.courseId,
+    this.geofence,
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
@@ -236,6 +349,12 @@ class Session {
       passThreshold: (json['pass_threshold'] as num?)?.toDouble() ?? 0.7,
       isActive: json['is_active'] as bool? ?? (json['end_time'] == null),
       currentPeriod: json['current_period'] as int? ?? 0,
+      level: json['level']?.toString(),
+      courseId: json['course_id']?.toString() ?? json['course']?.toString(),
+      geofence:
+          json['geofence'] != null
+              ? Geofence.fromJson(json['geofence'] as Map<String, dynamic>)
+              : null,
     );
   }
 
@@ -250,16 +369,10 @@ class Session {
       'pass_threshold': passThreshold,
       'is_active': isActive,
       'current_period': currentPeriod,
+      if (level != null) 'level': level,
+      if (courseId != null) 'course_id': courseId,
+      if (geofence != null) 'geofence': geofence!.toJson(),
     };
-  }
-
-  String toBlePayload() {
-    return jsonEncode({
-      'session_id': id,
-      'lecturer_username': lecturerUsername,
-      'program': program,
-      'start_time': startTime.millisecondsSinceEpoch,
-    });
   }
 
   // ...existing code...
@@ -269,6 +382,7 @@ class Session {
     lecturerUsername: '',
     program: '',
     startTime: DateTime(0),
+    geofence: null,
   );
 }
 

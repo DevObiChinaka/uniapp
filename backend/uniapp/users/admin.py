@@ -1,10 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
-from .models import Program
+from .models import Program, Course
 
 # Proxy models for admin use only (not in models.py, not migrated)
 admin.site.register(Program)
+
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    filter_horizontal = ('programs',)
+    list_display = ('code', 'name', 'level',)
 
 # Proxy models for admin use only (not in models.py, not migrated)
 class StudentUser(User):
@@ -75,9 +80,25 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(Session)
 class SessionAdmin(admin.ModelAdmin):
-    list_display = ('lecturer', 'program', 'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active')
-    list_filter = ('program', 'start_time')
-    search_fields = ('lecturer__username', 'program')
+    list_display = (
+        'lecturer', 'course', 'level', 'start_time', 'end_time', 'total_sessions', 'pass_threshold',
+        'get_latitude', 'get_longitude', 'get_radius', 'is_active'
+    )
+    list_filter = ('start_time', 'course', 'level')
+    search_fields = ('lecturer__username', 'course__name')
+
+    def get_latitude(self, obj):
+        return obj.geofence.latitude if obj.geofence else None
+    get_latitude.short_description = 'Latitude'
+
+    def get_longitude(self, obj):
+        return obj.geofence.longitude if obj.geofence else None
+    get_longitude.short_description = 'Longitude'
+
+    def get_radius(self, obj):
+        return obj.geofence.radius if obj.geofence else None
+    get_radius.short_description = 'Range (m)'
+
     @admin.display(boolean=True, description='Active?')
     def is_active(self, obj):
         return obj.end_time is None

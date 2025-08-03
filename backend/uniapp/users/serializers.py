@@ -1,26 +1,36 @@
 from .models import Geofence
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog
-from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog, Program
-
+from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog, Program, Course
 
 # --- Geofence Serializer ---
 class GeofenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Geofence
         fields = ['id', 'label', 'latitude', 'longitude', 'radius']
-        
+
+# --- Program Serializer ---
 class ProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = Program
         fields = ['id', 'name']
+
+# --- Course Serializer ---
+
+class CourseSerializer(serializers.ModelSerializer):
+    programs = ProgramSerializer(many=True, read_only=True)
+    program_ids = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all(), many=True, write_only=True, source='programs')
+    class Meta:
+        model = Course
+        fields = ['id', 'code', 'name', 'level', 'programs', 'program_ids']
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=False, allow_blank=True)
     campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False, allow_null=True)
     program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all(), required=False, allow_null=True)
+    level = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     def validate(self, attrs):
         role = attrs.get('role')
         if role == 'student':
@@ -28,23 +38,29 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'campus_tag': 'This field is required for students.'})
             if not attrs.get('program'):
                 raise serializers.ValidationError({'program': 'This field is required for students.'})
+            if not attrs.get('level'):
+                raise serializers.ValidationError({'level': 'This field is required for students.'})
         else:
             attrs['campus_tag'] = None
             attrs['program'] = None
+            attrs['level'] = None
         return attrs
 
     class Meta:
         model = User
         fields = [
             'university_id', 'username', 'first_name', 'last_name', 'email',
-            'password', 'role', 'campus_tag', 'program'
+            'password', 'role', 'campus_tag', 'program', 'level'
         ]
 
     def create(self, validated_data):
         password = validated_data.pop('password')
         if 'username' not in validated_data or not validated_data['username']:
             validated_data['username'] = validated_data.get('university_id', None)
+        level = validated_data.pop('level', None)
         user = User(**validated_data)
+        if level:
+            user.level = level
         user.set_password(password)
         user.save()
         return user
@@ -110,8 +126,27 @@ class SessionSerializer(serializers.ModelSerializer):
     lecturer = serializers.SlugRelatedField(
         slug_field='username', queryset=User.objects.all(), required=False
     )
-    program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all())
+
+    # Removed programs field; Session model does not have 'programs' anymore
+    course = CourseSerializer(read_only=True)
+    course_id = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all(), source='course', write_only=True)
+    level = serializers.CharField()
     is_active = serializers.BooleanField(required=False)
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
+    radius = serializers.FloatField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        programs = attrs.get('programs', [])
+        course = attrs.get('course')
+        level = attrs.get('level')
+        if course and programs:
+            for program in programs:
+                if not course.programs.filter(id=program.id).exists():
+                    raise serializers.ValidationError({'course_id': f'Selected course is not linked to program {program.id}.'})
+            if level and course.level != level:
+                raise serializers.ValidationError({'level': 'Selected course does not match the selected level.'})
+        return attrs
 
     id = serializers.SerializerMethodField()
     lecturer_username = serializers.SerializerMethodField()
@@ -123,8 +158,9 @@ class SessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Session
         fields = [
-            'id', 'lecturer', 'lecturer_username', 'program', 'start_time', 'end_time',
-            'total_sessions', 'pass_threshold', 'is_active', 'current_period', 'geofence', 'geofence_id'
+            'id', 'lecturer', 'lecturer_username', 'course', 'course_id', 'level',
+            'start_time', 'end_time', 'total_sessions', 'pass_threshold', 'is_active',
+            'current_period', 'geofence', 'geofence_id', 'latitude', 'longitude', 'radius'
         ]
 
     def get_id(self, obj):
@@ -133,6 +169,18 @@ class SessionSerializer(serializers.ModelSerializer):
     def get_lecturer_username(self, obj):
         username = getattr(obj.lecturer, 'username', None)
         return str(username) if username is not None else ''
+
+    def create(self, validated_data):
+        latitude = validated_data.pop('latitude', None)
+        longitude = validated_data.pop('longitude', None)
+        radius = validated_data.pop('radius', None)
+        session = Session.objects.create(**validated_data)
+        if latitude is not None and longitude is not None and radius is not None:
+            session.latitude = latitude
+            session.longitude = longitude
+            session.radius = radius
+            session.save()
+        return session
 
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:

@@ -17,6 +17,21 @@ class Program(models.Model):
     def __str__(self):
         return self.name
 
+class Course(models.Model):
+    code = models.CharField(max_length=20)
+    name = models.CharField(max_length=100)
+    level = models.CharField(max_length=10, choices=[
+        ("100", "100L"),
+        ("200", "200L"),
+        ("300", "300L"),
+        ("400", "400L"),
+        ("500", "500L"),
+    ])
+    programs = models.ManyToManyField(Program, related_name="courses")
+
+    def __str__(self):
+        return f"{self.code} - {self.name} ({self.level}L)"
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, university_id=None, username=None, password=None, **extra_fields):
         role = extra_fields.get('role')
@@ -75,6 +90,13 @@ class User(AbstractUser):
     face_id = models.CharField(max_length=100, blank=True, null=True)
     campus_tag = models.CharField(max_length=20, choices=(('on-campus', 'On Campus'), ('off-campus', 'Off Campus')), default='on-campus', null=True, blank=True)
     program = models.ForeignKey(Program, on_delete=models.SET_NULL, blank=True, null=True)
+    level = models.CharField(max_length=10, choices=[
+        ("100", "100L"),
+        ("200", "200L"),
+        ("300", "300L"),
+        ("400", "400L"),
+        ("500", "500L"),
+    ], blank=True, null=True, help_text="Student's academic level (e.g., 100, 200, etc.)")
     fcm_token = models.CharField(max_length=255, blank=True, null=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
 
@@ -115,7 +137,14 @@ class Geofence(models.Model):
 # Updated Session model with geofence relation
 class Session(models.Model):
     lecturer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
-    program = models.ForeignKey(Program, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='sessions')
+    level = models.CharField(max_length=10, choices=[
+        ("100", "100L"),
+        ("200", "200L"),
+        ("300", "300L"),
+        ("400", "400L"),
+        ("500", "500L"),
+    ])
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(blank=True, null=True)
     total_sessions = models.IntegerField(default=10)
@@ -123,9 +152,10 @@ class Session(models.Model):
     is_active = models.BooleanField(default=False)
     current_period = models.IntegerField(default=0, help_text="Current attendance period/cycle.")
     geofence = models.OneToOneField(Geofence, on_delete=models.SET_NULL, blank=True, null=True, related_name='session')
+    actual_end_time = models.DateTimeField(blank=True, null=True, help_text="When the session was manually ended.")
 
     def __str__(self):
-        return f"Session {self.id} ({self.program}) - Active: {self.is_active}"
+        return f"Session {self.id} - Active: {self.is_active}"
 
 class Attendance(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
