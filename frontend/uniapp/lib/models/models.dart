@@ -1,53 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import '../utils/utils.dart';
+import 'dart:convert';
+import 'program.dart' as prog;
 
-@immutable
-class Program {
-  final String id;
-  final String name;
-  final String? code;
-  final String? department;
-
-  const Program({
-    required this.id,
-    required this.name,
-    this.code,
-    this.department,
-  });
-
-  factory Program.fromJson(Map<String, dynamic> json) {
-    return Program(
-      id: json['id'].toString(),
-      name: json['name'] as String,
-      code: json['code'] as String?,
-      department: json['department'] as String?,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'code': code,
-      'department': department,
-    };
-  }
-
-  Program copyWith({
-    String? id,
-    String? name,
-    String? code,
-    String? department,
-  }) {
-    return Program(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      code: code ?? this.code,
-      department: department ?? this.department,
-    );
-  }
-}
+// Program model now imported from program.dart
 
 @immutable
 class Geofence {
@@ -102,7 +59,7 @@ class User {
   final String name;
   final String role;
   final String? faceId;
-  final Program? program;
+  final prog.Program? program;
   final String? campusTag;
   final bool isOnCampus;
   final String? universityId;
@@ -131,17 +88,39 @@ class User {
   final String? level;
 
   factory User.fromJson(Map<String, dynamic> json) {
+    prog.Program? mappedProgram;
+    final rawProgram = json['program'];
+    if (rawProgram != null) {
+      if (rawProgram is Map<String, dynamic>) {
+        mappedProgram = prog.Program.fromJson(rawProgram);
+      } else if (rawProgram is String) {
+        // If backend ever sends a string, try to parse as JSON
+        try {
+          mappedProgram = prog.Program.fromJson(
+            Map<String, dynamic>.from(jsonDecode(rawProgram)),
+          );
+        } catch (e) {
+          debugPrint(
+            '[User.fromJson] Failed to parse program string: $rawProgram',
+          );
+        }
+      } else {
+        debugPrint(
+          '[User.fromJson] Unknown program type: ${rawProgram.runtimeType}',
+        );
+      }
+    }
+    debugPrint('[User.fromJson] Mapped program: ${mappedProgram?.toJson()}');
+    // Always use backend PK (integer) for id, and university_id for universityId
     return User(
-      id: json['id'].toString(),
-      name: json['name'] as String,
-      role: json['role'] as String,
+      id: (json['id'] ?? '').toString(), // PK (integer as string)
+      universityId: json['university_id']?.toString(), // university ID string
+      name: json['name'] ?? '',
+      role: json['role'] ?? '',
       faceId: json['face_id'] as String?,
-      program: json['program'] != null && json['program'] is Map<String, dynamic>
-          ? Program.fromJson(json['program'] as Map<String, dynamic>)
-          : null,
+      program: mappedProgram,
       campusTag: json['campus_tag'] as String?,
       isOnCampus: json['is_on_campus'] as bool? ?? false,
-      universityId: json['university_id'] as String?,
       profilePictureUrl:
           json['profile_picture_url'] as String? ??
           json['profile_picture'] as String?,
@@ -177,7 +156,7 @@ class User {
     String? name,
     String? role,
     String? faceId,
-    Program? program,
+    prog.Program? program,
     String? campusTag,
     bool? isOnCampus,
     String? universityId,
@@ -228,14 +207,27 @@ class AttendanceRecord {
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) {
+    String parseString(dynamic value) {
+      if (value == null) return '';
+      if (value is String) return value;
+      return value.toString();
+    }
+
+    int parseInt(dynamic value) {
+      if (value == null) return 1;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 1;
+      return 1;
+    }
+
     return AttendanceRecord(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      sessionId: json['session_id'] as String,
+      id: parseString(json['id']),
+      userId: parseString(json['user_id']),
+      sessionId: parseString(json['session_id']),
       timestamp: DateTime.parse(json['timestamp'] as String),
-      method: json['method'] as String,
+      method: parseString(json['method']),
       program: json['program'] as String?,
-      period: json['period'] as int? ?? 1,
+      period: parseInt(json['period']),
     );
   }
 
@@ -350,7 +342,25 @@ class Session {
       isActive: json['is_active'] as bool? ?? (json['end_time'] == null),
       currentPeriod: json['current_period'] as int? ?? 0,
       level: json['level']?.toString(),
-      courseId: json['course_id']?.toString() ?? json['course']?.toString(),
+      courseId:
+          (() {
+            final raw = json['course_id'] ?? json['course'];
+            if (raw == null) return null;
+            if (raw is Map<String, dynamic> && raw.containsKey('id')) {
+              return raw['id'].toString();
+            }
+            // If it's a stringified object, try to parse and extract id
+            if (raw is String && raw.startsWith('{') && raw.contains('id')) {
+              try {
+                final parsed = jsonDecode(raw);
+                if (parsed is Map && parsed.containsKey('id')) {
+                  return parsed['id'].toString();
+                }
+              } catch (_) {}
+            }
+            // Otherwise, just return as string
+            return raw.toString();
+          })(),
       geofence:
           json['geofence'] != null
               ? Geofence.fromJson(json['geofence'] as Map<String, dynamic>)

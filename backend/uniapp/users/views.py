@@ -237,65 +237,64 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def create(self, request):
-        # BLE validation (legacy, can be removed if not needed)
-        if request.data.get('ble_rssi', 0) > -70:
-            SystemLog.objects.create(
-                log_type='attendance',
-                event='Weak BLE signal',
-                user=request.user,
-                details=f"RSSI: {request.data['ble_rssi']}"
-            )
-            return Response({
-                'error': 'BLE_RANGE_ERROR',
-                'message': 'Device too far away'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # BLE validation removed
 
         # Geofence validation
         session_id = request.data.get('session')
         session = Session.objects.get(id=session_id)
         latitude = request.data.get('latitude')
         longitude = request.data.get('longitude')
-        if session.geofence:
-            if latitude is None or longitude is None:
-                return Response({
-                    'error': 'LOCATION_REQUIRED',
-                    'message': 'Latitude and longitude are required for geofenced sessions.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            try:
-                lat = float(latitude)
-                lng = float(longitude)
-                gf_lat = session.geofence.latitude
-                gf_lng = session.geofence.longitude
-                gf_radius = session.geofence.radius
-                from math import radians, cos, sin, asin, sqrt
-                def haversine(lat1, lon1, lat2, lon2):
-                    # Haversine formula to calculate the distance between two points on the Earth
-                    R = 6371000  # Radius of earth in meters
-                    dlat = radians(lat2 - lat1)
-                    dlon = radians(lon2 - lon1)
-                    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
-                    c = 2 * asin(sqrt(a))
-                    return R * c
-                distance = haversine(gf_lat, gf_lng, lat, lng)
-                if distance > gf_radius:
-                    SystemLog.objects.create(
-                        log_type='attendance',
-                        event='Geofence out of range',
-                        user=request.user,
-                        details=f"Distance: {distance:.2f}m, Allowed: {gf_radius}m"
-                    )
-                    return Response({
-                        'error': 'GEOFENCE_OUT_OF_RANGE',
-                        'message': f'You are not within the allowed area. Distance: {distance:.2f}m, Allowed: {gf_radius}m'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                return Response({
-                    'error': 'LOCATION_PARSE_ERROR',
-                    'message': str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        print('[AttendanceViewSet.create] Incoming data:', request.data)  # <-- LOGGING
+
+        # Accept either PK or university_id for user
+        user_ref = request.data.get('user')
+        user_obj = None
+        if user_ref:
+            # Try to get by PK (int)
+            try:
+                user_obj = User.objects.get(pk=int(user_ref))
+            except (ValueError, User.DoesNotExist):
+                # Try to get by university_id (string)
+                try:
+                    user_obj = User.objects.get(university_id=user_ref)
+                except User.DoesNotExist:
+                    print('[AttendanceViewSet.create] User not found for:', user_ref)
+                    return Response({'error': 'USER_NOT_FOUND'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not user_obj:
+            print('[AttendanceViewSet.create] No user found for:', user_ref)
+            return Response({'error': 'USER_NOT_FOUND'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Prevent duplicate attendance for same user/session/period
+        period = session.current_period
+        existing = Attendance.objects.filter(user=user_obj, session=session, period=period).first()
+        if existing:
+            print('[AttendanceViewSet.create] Duplicate attendance detected for user:', user_obj.pk, 'session:', session.pk, 'period:', period)
+            return Response({'error': 'ALREADY_MARKED', 'message': 'Attendance already marked for this period.'}, status=status.HTTP_409_CONFLICT)
+
+        # Replace user field in data with PK
+        data = request.data.copy()
+        data['user'] = user_obj.pk
+
+        serializer = self.get_serializer(data=data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as e:
+            print('[AttendanceViewSet.create] Serializer errors:', serializer.errors)  # <-- LOGGING
+            raise
+        # Set period to session.current_period
+        serializer.save(user=user_obj, session=session, period=period)
+
+        SystemLog.objects.create(
+            log_type='attendance',
+            event='Attendance marked',
+            user=user_obj,
+            details=f"Method: {request.data.get('method', 'unknown')}"
+        )
+        headers = self.get_success_headers(serializer.data)
+        print('[AttendanceViewSet.create] Created attendance:', serializer.data)  # <-- LOGGING
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         # Set period to session.current_period
         serializer.save(user=request.user, session=session, period=session.current_period)
 

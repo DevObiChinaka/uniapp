@@ -1,9 +1,39 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+class Course {
+  final String code;
+  final String name;
+
+  Course({required this.code, required this.name});
+
+  factory Course.fromJson(Map<String, dynamic> json) {
+    return Course(
+      code: json['code'] ?? json['id'] ?? '',
+      name: json['name'] ?? '',
+    );
+  }
+}
+  Future<Course?> _fetchCourseDetails(String courseId) async {
+    if (courseId.isEmpty) return null;
+    try {
+      // Replace with your actual backend endpoint
+      final url = Uri.parse('https://your-backend-url/api/courses/$courseId/');
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return Course.fromJson(data);
+      }
+    } catch (e) {
+      debugPrint('[AttendanceScreen] Course fetch error: $e');
+    }
+    return null;
+  }
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'face_verification_screen.dart';
 import 'qr_attendance_screen.dart';
+import 'face_verification_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -87,6 +117,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   bool _isMarkingAttendance = false;
   String? _markAttendanceError;
+  bool _isMarked = false;
 
   Future<void> _markAttendance() async {
     if (mounted)
@@ -118,12 +149,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
       final activeSession = appProvider.activeSession;
       final user = appProvider.getCurrentUser();
-      final userId = user?.universityId;
+      final userId = user?.id;
       if (activeSession == null || userId == null) {
         throw Exception('SESSION_OR_USER_MISSING: Cannot mark attendance.');
       }
       final success = await appProvider.coreServices.markAttendance(
-        userId: userId,
+        userId: userId.toString(), // Use PK (id) for attendance marking
         sessionId: activeSession.id,
         faceVerified: true,
         latitude: studentPosition?.latitude,
@@ -135,6 +166,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       // Refresh attendance history after marking
       await provider.fetchAttendanceHistory();
+
+      // Re-check marked status after refresh
+      bool marked = provider.attendanceRecords.any(
+        (record) =>
+            record.sessionId == activeSession.id &&
+            record.period == activeSession.currentPeriod,
+      );
+      if (mounted) {
+        setState(() {
+          _isMarked = marked;
+        });
+      }
+
       debugPrint('[AttendanceScreen] Attendance marked successfully.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Attendance marked successfully!')),
@@ -174,11 +218,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _fetchAttendanceData() async {
     final provider = Provider.of<AppProvider>(context, listen: false);
     try {
+      debugPrint('[AttendanceScreen] Fetching latest user profile...');
+      await provider.fetchProfile(); // Ensure user PK is up-to-date
       debugPrint('[AttendanceScreen] Fetching active session...');
       await provider.fetchActiveSession();
       debugPrint('[AttendanceScreen] Fetching attendance history...');
       await provider.fetchAttendanceHistory();
       _errorMessage = null;
+
+      // Check marked status immediately after fetching
+      final activeSession = provider.activeSession;
+      bool marked = false;
+      if (activeSession != null) {
+        marked = provider.attendanceRecords.any(
+          (record) =>
+              record.sessionId == activeSession.id &&
+              record.period == activeSession.currentPeriod,
+        );
+      }
+      if (mounted) {
+        setState(() {
+          _isMarked = marked;
+        });
+      }
     } catch (e) {
       debugPrint('[AttendanceScreen] Error: $e');
       if (mounted)
@@ -262,6 +324,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 final recentAttendance =
                     provider.attendanceRecords.take(5).toList();
 
+                // Use _isMarked for button and status
                 return Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: SingleChildScrollView(
@@ -269,64 +332,106 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (activeSession != null)
-                          Card(
-                            elevation: 3,
-                            margin: const EdgeInsets.only(bottom: 16),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Course: ${activeSession.courseId ?? 'N/A'}',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Lecturer: ${activeSession.lecturerUsername}',
-                                  ),
-                                  Text(
-                                    'Time: ${activeSession.startTime.toLocal().toString().substring(0, 19)}',
-                                  ),
-                                  Text(
-                                    'Period: ${activeSession.currentPeriod}',
-                                  ),
-                                  SizedBox(height: 12),
-                                  ElevatedButton.icon(
-                                    icon: Icon(Icons.fingerprint),
-                                    label:
-                                        _isMarkingAttendance
-                                            ? Text('Marking...')
-                                            : !_isInProximity
-                                            ? Text('Not in proximity')
-                                            : Text('Mark Attendance'),
-                                    onPressed:
-                                        !_isInProximity || _isMarkingAttendance
-                                            ? null
-                                            : () async {
-                                              await _markAttendance();
-                                            },
-                                  ),
-                                  if (!_isInProximity)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8.0),
-                                      child: Text(
-                                        'You must be within 50 meters of the lecturer to mark attendance.',
-                                        style: TextStyle(color: Colors.orange),
+                          FutureBuilder<Course?>(
+                            future: _fetchCourseDetails(activeSession.courseId ?? ''),
+                            builder: (context, snapshot) {
+                              final course = snapshot.data;
+                              return Card(
+                                elevation: 3,
+                                margin: const EdgeInsets.only(bottom: 16),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Course Code: ${course?.code ?? activeSession.courseId ?? 'N/A'}',
+                                        style: Theme.of(context).textTheme.titleMedium,
                                       ),
-                                    ),
-                                  if (_markAttendanceError != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8.0),
-                                      child: Text(
-                                        _markAttendanceError!,
-                                        style: TextStyle(color: Colors.red),
+                                      if (course?.name != null && course!.name.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 4.0),
+                                          child: Text(
+                                            course.name,
+                                            style: Theme.of(context).textTheme.bodyMedium,
+                                          ),
+                                        ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Lecturer: ${activeSession.lecturerUsername}',
                                       ),
-                                    ),
-                                ],
-                              ),
-                            ),
+                                      Text(
+                                        'Time: ${activeSession.startTime.toLocal().toString().substring(0, 19)}',
+                                      ),
+                                      Text(
+                                        'Period: ${activeSession.currentPeriod}',
+                                      ),
+                                      SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            _isMarked
+                                                ? Icons.check_circle
+                                                : Icons.radio_button_unchecked,
+                                            color:
+                                                _isMarked
+                                                    ? Colors.green
+                                                    : Colors.grey,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            _isMarked
+                                                ? 'Attendance marked for this period'
+                                                : 'Not marked for this period',
+                                            style: TextStyle(
+                                              color:
+                                                  _isMarked
+                                                      ? Colors.green
+                                                      : Colors.orange,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: 12),
+                                      ElevatedButton.icon(
+                                        icon: Icon(Icons.fingerprint),
+                                        label:
+                                            _isMarkingAttendance
+                                                ? Text('Marking...')
+                                                : !_isInProximity
+                                                ? Text('Not in proximity')
+                                                : Text('Mark Attendance'),
+                                        onPressed:
+                                            !_isInProximity ||
+                                                    _isMarkingAttendance ||
+                                                    _isMarked
+                                                ? null
+                                                : () async {
+                                                  await _markAttendance();
+                                                },
+                                      ),
+                                      if (!_isInProximity)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 8.0),
+                                          child: Text(
+                                            'You must be within 50 meters of the lecturer to mark attendance.',
+                                            style: TextStyle(color: Colors.orange),
+                                          ),
+                                        ),
+                                      if (_markAttendanceError != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 8.0),
+                                          child: Text(
+                                            _markAttendanceError!,
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           )
                         else
                           Card(

@@ -16,47 +16,144 @@ import '../models/face_exception.dart';
 import '../utils/location_utils.dart';
 
 class AppProvider with ChangeNotifier {
+  /// Fetch and update the current user profile (ensures PK is used for id)
+  Future<void> fetchProfile() async {
+    debugPrint('[AppProvider] Fetching latest user profile...');
+    final latestUser = await coreServices.fetchProfile();
+    if (latestUser != null) {
+      // Update _userId and _allStudents with correct PK
+      _userId = latestUser.id;
+      // Ensure program is a Program object
+      var userObj = latestUser;
+      if (userObj.program is Map<String, dynamic>) {
+        final progObj = prog.Program.fromJson(
+          userObj.program as Map<String, dynamic>,
+        );
+        userObj = userObj.copyWith(program: progObj as prog.Program?);
+      } else if (userObj.program is! prog.Program && userObj.program != null) {
+        userObj = userObj.copyWith(program: null);
+      }
+      // Do NOT overwrite id with universityId
+      final index = _allStudents.indexWhere((s) => s.id == userObj.id);
+      if (index != -1) {
+        _allStudents[index] = userObj;
+        debugPrint(
+          '[AppProvider] Updated _allStudents with PK: id=${userObj.id}, universityId=${userObj.universityId}',
+        );
+      } else {
+        _allStudents.add(userObj);
+        debugPrint(
+          '[AppProvider] Added latestUser to _allStudents: id=${userObj.id}, universityId=${userObj.universityId}',
+        );
+      }
+      notifyListeners();
+    }
+  }
+
   /// Fetch the active session for the current student (program/level)
   Future<void> fetchActiveSession() async {
+    debugPrint('[AppProvider] _allStudents before getCurrentUser:');
+    for (var s in _allStudents) {
+      debugPrint(
+        '  id: ${s.id}, program: ${s.program}, type: ${s.program.runtimeType}',
+      );
+    }
     try {
+      // Always fetch the latest profile before fetching sessions
+      final latestUser = await coreServices.fetchProfile();
+      if (latestUser != null && _role == AppConstants.studentRole) {
+        // Always set _userId to latestUser.universityId for students
+        _userId = latestUser.universityId;
+        // Ensure program is a Program object
+        var userObj = latestUser;
+        if (userObj.program is Map<String, dynamic>) {
+          final progObj = prog.Program.fromJson(
+            userObj.program as Map<String, dynamic>,
+          );
+          userObj = userObj.copyWith(program: progObj as prog.Program?);
+        } else if (userObj.program is! prog.Program &&
+            userObj.program != null) {
+          userObj = userObj.copyWith(program: null);
+        }
+        // Ensure id is universityId for students
+        userObj = userObj.copyWith(id: latestUser.universityId);
+        // Update or add user in _allStudents using universityId
+        final index = _allStudents.indexWhere((s) => s.id == _userId);
+        if (index != -1) {
+          _allStudents[index] = userObj;
+          debugPrint(
+            '[AppProvider] After profile update: program=${_allStudents[index].program}, type=${_allStudents[index].program.runtimeType}',
+          );
+        } else {
+          _allStudents.add(userObj);
+          debugPrint(
+            '[AppProvider] Added latestUser to _allStudents: id=${userObj.id}, universityId=${userObj.universityId}, program=${userObj.program}, type=${userObj.program.runtimeType}',
+          );
+        }
+        // Immediately check getCurrentUser
+        final currentUser = getCurrentUser();
+        debugPrint(
+          '[AppProvider] getCurrentUser after update: program=${currentUser?.program}, type=${currentUser?.program.runtimeType}',
+        );
+      }
       final user = getCurrentUser();
+      debugPrint(
+        '[AppProvider] getCurrentUser: user=$user, program=${user?.program}, type=${user?.program.runtimeType}',
+      );
       final userId = user?.universityId ?? _userId;
-      final program = user?.program;
+      var program = user?.program;
+      // Defensive: ensure program is a Program object
+      if (program != null && program is Map<String, dynamic>) {
+        program = prog.Program.fromJson(program as Map<String, dynamic>);
+      }
       final level =
           user?.level ??
           (user != null && user.toJson().containsKey('level')
               ? user.toJson()['level']
               : null);
-      debugPrint('[AppProvider] Student program from profile: \\${program}');
+      debugPrint('[AppProvider] Student program from profile: ${program}');
       if (userId == null || program == null)
         throw Exception('User, program, or level missing');
       final sessions = await coreServices.getSessions(userId, isStudent: true);
       debugPrint('[AppProvider] Backend returned sessions:');
       for (var s in sessions) {
         debugPrint(
-          '  id: \\${s.id}, program: \\${s.program}, level: \\${s.level}, isActive: \\${s.isActive}, lecturer: \\${s.lecturerUsername}',
+          '  id: ${s.id}, program: ${s.program}, level: ${s.level}, isActive: ${s.isActive}, lecturer: ${s.lecturerUsername}',
         );
       }
       debugPrint(
-        '[AppProvider] Filtering for program: \\${program}, level: \\${level}',
+        '[AppProvider] Filtering for program: ${program}, level: ${level}',
       );
-      final filtered =
-          sessions.where((s) {
-            final programMatch = s.program == program;
-            final levelMatch = (level == null || s.level == level);
-            if (!programMatch || !levelMatch) {
-              debugPrint(
-                '  Skipping session id=\\${s.id}: programMatch=\\${programMatch}, levelMatch=\\${levelMatch}',
-              );
-            }
-            return programMatch && levelMatch;
-          }).toList();
-      debugPrint('[AppProvider] Filtered sessions count: \\${filtered.length}');
+      // Refactored: filter sessions using course's programs and level
+      List<Session> filtered = [];
+      for (var s in sessions) {
+        if (s.courseId == null) {
+          debugPrint('  Skipping session id=${s.id}: no courseId');
+          continue;
+        }
+        final course = await coreServices.getCourse(s.courseId!);
+        if (course == null) {
+          debugPrint('  Skipping session id=${s.id}: course not found');
+          continue;
+        }
+        final courseProgramNames = course.programs.map((p) => p.name).toList();
+        final studentProgramName = (program as prog.Program).name;
+        final programMatch = courseProgramNames.contains(studentProgramName);
+        final levelMatch = (level == null || course.level == level);
+        if (!programMatch || !levelMatch) {
+          debugPrint(
+            '  Skipping session id=${s.id}: programMatch=${programMatch}, levelMatch=${levelMatch}',
+          );
+          continue;
+        }
+        filtered.add(s);
+      }
+      debugPrint('[AppProvider] Filtered sessions count: ${filtered.length}');
       _sessions = filtered;
       _activeSession = filtered.isNotEmpty ? filtered.first : null;
       if (_activeSession != null) {
         debugPrint(
-          '[AppProvider] Active session selected: id=\\${_activeSession!.id}',
+          '[AppProvider] Active session selected: id=${_activeSession!.id}',
         );
       } else {
         debugPrint('[AppProvider] No active session found after filtering.');

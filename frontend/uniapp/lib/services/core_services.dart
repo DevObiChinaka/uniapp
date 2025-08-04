@@ -9,8 +9,28 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/app_constants.dart';
 import '../models/models.dart';
+import '../models/course.dart';
 
 class CoreServices {
+  /// Fetch a course by its ID
+  Future<Course?> getCourse(String courseId) async {
+    try {
+      final response = await _dio.get(
+        '${AppConstants.baseUrl}/courses/$courseId/',
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        return Course.fromJson(response.data);
+      }
+      debugPrint(
+        'getCourse: Unexpected response: ${response.statusCode} - ${response.data}',
+      );
+      return null;
+    } catch (e) {
+      debugPrint('getCourse error: $e');
+      return null;
+    }
+  }
+
   /// Delete a session by ID
   Future<bool> deleteSession(String sessionId) async {
     try {
@@ -244,19 +264,24 @@ class CoreServices {
     double? longitude,
   }) async {
     try {
+      final payload = {
+        'user': int.tryParse(userId) ?? userId,
+        'session': sessionId,
+        'face_verified': faceVerified,
+        'method': 'location',
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+      };
+      debugPrint('[markAttendance] Sending payload: ' + payload.toString());
       final response = await _dio.post(
         AppConstants.attendanceEndpoint,
-        data: {
-          'user_id': userId,
-          'session': sessionId,
-          'face_verified': faceVerified,
-          'method': 'location',
-          if (latitude != null) 'latitude': latitude,
-          if (longitude != null) 'longitude': longitude,
-        },
+        data: payload,
       );
-
-      return response.statusCode == 200;
+      debugPrint(
+        '[markAttendance] Response status: ' + response.statusCode.toString(),
+      );
+      debugPrint('[markAttendance] Response data: ' + response.data.toString());
+      return response.statusCode == 200 || response.statusCode == 201;
     } on DioException catch (e) {
       _handleApiError(e, 'Attendance marking');
       return false;
