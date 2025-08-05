@@ -483,6 +483,24 @@ class AppProvider with ChangeNotifier {
 
   AppProvider({required this.coreServices, required this.faceService});
 
+  /// Call this after successful login to preload all required data for all screens
+  Future<void> preloadAllData() async {
+    try {
+      debugPrint('[AppProvider] Preloading all data after login...');
+      await fetchProfile();
+      await fetchActiveSession();
+      await fetchAttendanceHistory();
+      await fetchPrograms();
+      await fetchLeaveRequests();
+
+      // Add other fetches as needed (leave requests, logs, etc.)
+      debugPrint('[AppProvider] Data preload complete.');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[AppProvider] Error during data preload: $e');
+    }
+  }
+
   // Getters
   String? get role => _role;
   String? get faceId => _faceId;
@@ -1359,6 +1377,10 @@ class AppProvider with ChangeNotifier {
         _currentProgram = 'Computer Science';
         _favorites = ['CS101', 'MATH202', 'PHYS101'];
         _calculateAttendanceStats();
+      }
+      // After loading user data, preload all data for student
+      if (_role == AppConstants.studentRole) {
+        await preloadAllData();
       }
       notifyListeners();
     } catch (e) {

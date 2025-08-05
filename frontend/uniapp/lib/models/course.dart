@@ -5,12 +5,14 @@ import 'program.dart' as prog;
 class Course {
   final String id;
   final String name;
+  final String code;
   final List<prog.Program> programs;
   final String level;
 
   const Course({
     required this.id,
     required this.name,
+    required this.code,
     required this.programs,
     required this.level,
   });
@@ -29,6 +31,7 @@ class Course {
     return Course(
       id: json['id'].toString(),
       name: json['name']?.toString() ?? '',
+      code: json ['code']?.toString() ?? '',
       programs: programs,
       level: json['level']?.toString() ?? '',
     );

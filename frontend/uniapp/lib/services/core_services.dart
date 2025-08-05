@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
 import '../screens/app_constants.dart';
 import '../models/models.dart';

@@ -22,7 +22,7 @@ class AppConstants {
   static const bool enforceVerificationInDebug = false;
 
   // API Configuration
-  static const String baseUrl = 'http://10.220.191.34:8000/api';
+  static const String baseUrl = 'http://172.20.10.11:8000/api';
   static const String faceApiEndpoint =
       'https://facin-api-test.cognitiveservices.azure.com/';
 

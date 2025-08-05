@@ -1,39 +1,24 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-class Course {
-  final String code;
-  final String name;
-
-  Course({required this.code, required this.name});
-
-  factory Course.fromJson(Map<String, dynamic> json) {
-    return Course(
-      code: json['code'] ?? json['id'] ?? '',
-      name: json['name'] ?? '',
-    );
-  }
-}
-  Future<Course?> _fetchCourseDetails(String courseId) async {
-    if (courseId.isEmpty) return null;
-    try {
-      // Replace with your actual backend endpoint
-      final url = Uri.parse('https://your-backend-url/api/courses/$courseId/');
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return Course.fromJson(data);
-      }
-    } catch (e) {
-      debugPrint('[AttendanceScreen] Course fetch error: $e');
-    }
-    return null;
-  }
+// ...existing code...
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app_provider.dart';
+import '../../models/course.dart';
 import 'package:geolocator/geolocator.dart';
 import 'qr_attendance_screen.dart';
 import 'face_verification_screen.dart';
+
+// ...removed local Course class, using shared model instead...
+
+Future<Course?> _fetchCourseDetails(BuildContext context, String courseId) {
+  if (courseId.isEmpty) return Future.value(null);
+  try {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    return provider.coreServices.getCourse(courseId);
+  } catch (e) {
+    debugPrint('[AttendanceScreen] Course fetch error: $e');
+    return Future.value(null);
+  }
+}
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -43,6 +28,9 @@ class AttendanceScreen extends StatefulWidget {
 }
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
+  // Cache for course codes to avoid duplicate API calls
+  final Map<String, String> _courseCodeCache = {};
+
   bool _isInProximity = false;
 
   Future<void> _checkProximity() async {
@@ -72,7 +60,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         '[AttendanceScreen] Student location: ${studentPosition.latitude}, ${studentPosition.longitude}',
       );
 
-      // Get lecturer's location from active session
+      // Get lecturer's location and geofence radius from active session
       final provider = Provider.of<AppProvider>(context, listen: false);
       final session = provider.activeSession;
       if (session == null || session.geofence == null) {
@@ -85,26 +73,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
         return;
       }
-      final double lecturerLat = session.geofence!.latitude;
-      final double lecturerLng = session.geofence!.longitude;
+      final double geofenceLat = session.geofence!.latitude;
+      final double geofenceLng = session.geofence!.longitude;
+      final double geofenceRadius = session.geofence!.radius; // meters
       debugPrint(
-        '[AttendanceScreen] Lecturer geofence location: $lecturerLat, $lecturerLng',
+        '[AttendanceScreen] Geofence location: $geofenceLat, $geofenceLng, radius: $geofenceRadius',
       );
 
-      // Calculate distance between student and lecturer
+      // Calculate distance between student and geofence center
       double distanceInMeters = Geolocator.distanceBetween(
         studentPosition.latitude,
         studentPosition.longitude,
-        lecturerLat,
-        lecturerLng,
+        geofenceLat,
+        geofenceLng,
       );
       debugPrint(
-        '[AttendanceScreen] Distance to lecturer: ${distanceInMeters.toStringAsFixed(2)} meters',
+        '[AttendanceScreen] Distance to geofence center: ${distanceInMeters.toStringAsFixed(2)} meters',
       );
 
       if (mounted)
         setState(() {
-          _isInProximity = distanceInMeters <= 50.0;
+          _isInProximity = distanceInMeters <= geofenceRadius;
         });
     } catch (e) {
       debugPrint('[AttendanceScreen] Proximity check error: $e');
@@ -333,7 +322,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       children: [
                         if (activeSession != null)
                           FutureBuilder<Course?>(
-                            future: _fetchCourseDetails(activeSession.courseId ?? ''),
+                            future: _fetchCourseDetails(
+                              context,
+                              activeSession.courseId ?? '',
+                            ),
                             builder: (context, snapshot) {
                               final course = snapshot.data;
                               return Card(
@@ -342,18 +334,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(16.0),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Course Code: ${course?.code ?? activeSession.courseId ?? 'N/A'}',
-                                        style: Theme.of(context).textTheme.titleMedium,
+                                        style:
+                                            Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
                                       ),
-                                      if (course?.name != null && course!.name.isNotEmpty)
+                                      if (course?.name != null &&
+                                          course!.name.isNotEmpty)
                                         Padding(
-                                          padding: const EdgeInsets.only(top: 4.0),
+                                          padding: const EdgeInsets.only(
+                                            top: 4.0,
+                                          ),
                                           child: Text(
                                             course.name,
-                                            style: Theme.of(context).textTheme.bodyMedium,
+                                            style:
+                                                Theme.of(
+                                                  context,
+                                                ).textTheme.bodyMedium,
                                           ),
                                         ),
                                       SizedBox(height: 8),
@@ -413,15 +415,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                       ),
                                       if (!_isInProximity)
                                         Padding(
-                                          padding: const EdgeInsets.only(top: 8.0),
+                                          padding: const EdgeInsets.only(
+                                            top: 8.0,
+                                          ),
                                           child: Text(
                                             'You must be within 50 meters of the lecturer to mark attendance.',
-                                            style: TextStyle(color: Colors.orange),
+                                            style: TextStyle(
+                                              color: Colors.orange,
+                                            ),
                                           ),
                                         ),
                                       if (_markAttendanceError != null)
                                         Padding(
-                                          padding: const EdgeInsets.only(top: 8.0),
+                                          padding: const EdgeInsets.only(
+                                            top: 8.0,
+                                          ),
                                           child: Text(
                                             _markAttendanceError!,
                                             style: TextStyle(color: Colors.red),
@@ -463,24 +471,46 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         ),
                         SizedBox(height: 8),
                         if (recentAttendance.isNotEmpty)
-                          ...recentAttendance.map(
-                            (record) => Card(
-                              child: ListTile(
-                                leading: Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                ),
-                                title: Text('Session: ${record.sessionId}'),
-                                subtitle: Text(
-                                  'Time: ${record.timestamp.toLocal().toString().substring(0, 19)}',
-                                ),
-                                trailing: Text(
-                                  'Marked',
-                                  style: TextStyle(color: Colors.green),
-                                ),
+                          ...recentAttendance.map((record) {
+                            debugPrint(
+                              '[AttendanceScreen] Attendance record: sessionId=${record.sessionId}, timestamp=${record.timestamp}',
+                            );
+                            return FutureBuilder<Course?>(
+                              future: _getCourseForAttendance(
+                                context,
+                                record.sessionId,
                               ),
-                            ),
-                          )
+                              builder: (context, snapshot) {
+                                String courseText;
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  courseText = 'Loading course...';
+                                } else if (snapshot.hasError) {
+                                  courseText = 'Course lookup error';
+                                } else if (snapshot.data == null) {
+                                  courseText = 'Session/Course not found';
+                                } else {
+                                  courseText = 'Course: ${snapshot.data!.code}';
+                                }
+                                return Card(
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                    ),
+                                    title: Text(courseText),
+                                    subtitle: Text(
+                                      'Time: ${record.timestamp.toLocal().toString().substring(0, 19)}',
+                                    ),
+                                    trailing: Text(
+                                      'Marked',
+                                      style: TextStyle(color: Colors.green),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }).toList()
                         else
                           Text('No recent attendance records.'),
                       ],
@@ -493,5 +523,46 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ),
       ),
     );
+  }
+
+  // Helper to fetch course for attendance record and cache result
+  Future<Course?> _getCourseForAttendance(
+    BuildContext context,
+    String sessionId,
+  ) async {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    final sessionList =
+        provider.sessions.where((s) => s.id == sessionId).toList();
+    final session = sessionList.isNotEmpty ? sessionList.first : null;
+    if (session == null) {
+      debugPrint(
+        '[AttendanceScreen] Session not found for attendance record: sessionId=$sessionId',
+      );
+      return null;
+    }
+    if (session.courseId == null || session.courseId!.isEmpty) {
+      debugPrint(
+        '[AttendanceScreen] CourseId missing for session: sessionId=$sessionId',
+      );
+      return null;
+    }
+    final courseId = session.courseId!;
+    // Check cache
+    if (_courseCodeCache.containsKey(courseId)) {
+      return Course(
+        id: courseId,
+        code: _courseCodeCache[courseId]!,
+        name: '',
+        programs: [],
+        level: '',
+      );
+    }
+    final course = await _fetchCourseDetails(context, courseId);
+    if (course == null) {
+      debugPrint('[AttendanceScreen] Course not found for courseId=$courseId');
+    } else {
+      _courseCodeCache[courseId] = course.code;
+    }
+    return course;
   }
 }

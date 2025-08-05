@@ -220,10 +220,17 @@ class AttendanceRecord {
       return 1;
     }
 
+    // Accept both 'session_id' and 'session' from backend
+    String sessionIdValue = '';
+    if (json.containsKey('session_id')) {
+      sessionIdValue = parseString(json['session_id']);
+    } else if (json.containsKey('session')) {
+      sessionIdValue = parseString(json['session']);
+    }
     return AttendanceRecord(
       id: parseString(json['id']),
       userId: parseString(json['user_id']),
-      sessionId: parseString(json['session_id']),
+      sessionId: sessionIdValue,
       timestamp: DateTime.parse(json['timestamp'] as String),
       method: parseString(json['method']),
       program: json['program'] as String?,
