@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
-import '../screens/edit_profile_screen.dart';
 import '../screens/student/dashboard_screen.dart' as student;
 import '../screens/student/attendance_screen.dart' as student;
 import '../screens/student/exit_screen.dart' as student;
@@ -36,15 +35,6 @@ class AppRouter {
       GoRoute(
         path: routes.AppRoutes.biometricLogin,
         builder: (context, state) => const biometric.BiometricLoginScreen(),
-      ),
-      GoRoute(
-        path: routes.AppRoutes.editProfile,
-        builder: (context, state) {
-          final Map<String, dynamic> extra =
-              state.extra as Map<String, dynamic>? ?? {};
-          final userId = extra['userId'] as String? ?? '';
-          return EditProfileScreen(userId: userId);
-        },
       ),
       // GoRoute(
       //   path: '/student/dashboard',
