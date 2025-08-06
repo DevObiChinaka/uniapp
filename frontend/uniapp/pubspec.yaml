@@ -29,6 +29,9 @@ dependencies:
   crypto: ^3.0.3
   uuid: ^4.2.1
 
+  # File operations & sharing
+  share_plus: ^7.2.1
+
   # Permissions & Auth
   permission_handler: ^11.3.0
   local_auth: ^2.1.6
@@ -74,7 +77,6 @@ dev_dependencies:
 # Add Google Maps Flutter for map display in lecturer QR generation
 # See https://pub.dev/packages/google_maps_flutter for details
 google_maps_flutter: ^2.6.0
-
 
 flutter:
   uses-material-design: true

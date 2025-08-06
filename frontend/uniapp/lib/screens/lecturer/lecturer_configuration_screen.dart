@@ -228,7 +228,12 @@ class _LecturerConfigurationScreenState
   Widget build(BuildContext context) {
     final appProvider = Provider.of<AppProvider>(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Session Configuration')),
+      appBar: AppBar(
+        title: const Text('Session Configuration'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 2,
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: SingleChildScrollView(
@@ -239,211 +244,345 @@ class _LecturerConfigurationScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Create a new session',
-                  style: Theme.of(context).textTheme.titleLarge,
+                // Header Section
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context).primaryColor.withOpacity(0.1),
+                          Theme.of(context).primaryColor.withOpacity(0.05),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.settings,
+                          size: 48,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Create New Session',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Configure session parameters and location settings',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Geofencing Details',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Row(
+                SizedBox(height: 24),
+
+                // Course Selection Section
+                _buildSectionCard(
+                  context,
+                  title: 'Course Selection',
+                  icon: Icons.school,
                   children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _latitudeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Latitude',
-                          border: OutlineInputBorder(),
+                    DropdownButtonFormField<String>(
+                      value: _selectedLevel,
+                      decoration: InputDecoration(
+                        labelText: 'Academic Level',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        keyboardType: TextInputType.number,
-                        onChanged:
-                            (val) => setState(
-                              () => _latitude = double.tryParse(val),
-                            ),
-                        validator:
-                            (val) =>
-                                val == null || val.isEmpty ? 'Required' : null,
+                        prefixIcon: Icon(Icons.grade),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _longitudeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Longitude',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        onChanged:
-                            (val) => setState(
-                              () => _longitude = double.tryParse(val),
-                            ),
-                        validator:
-                            (val) =>
-                                val == null || val.isEmpty ? 'Required' : null,
-                      ),
-                    ),
-                  ],
-                ),
-                if (_isLoadingLocation)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        decoration: const InputDecoration(
-                          labelText: 'Radius (meters)',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        initialValue: _radius.toString(),
-                        onChanged:
-                            (val) => setState(
-                              () => _radius = double.tryParse(val) ?? 50.0,
-                            ),
-                        validator:
-                            (val) =>
-                                val == null || val.isEmpty ? 'Required' : null,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.my_location),
-                      label: const Text('Use My Location'),
-                      onPressed: _getCurrentLocation,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedLevel,
-                  decoration: const InputDecoration(
-                    labelText: 'Level',
-                    border: OutlineInputBorder(),
-                  ),
-                  items:
-                      _levels
-                          .map(
-                            (l) => DropdownMenuItem<String>(
-                              value: l,
-                              child: Text('$l Level'),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (val) async {
-                    setState(() {
-                      _selectedLevel = val;
-                      _selectedCourseId = null;
-                      _courses = [];
-                    });
-                    await _fetchCourses();
-                  },
-                  validator:
-                      (val) =>
-                          val == null || val.isEmpty ? 'Select level' : null,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedCourseId,
-                  decoration: const InputDecoration(
-                    labelText: 'Course',
-                    border: OutlineInputBorder(),
-                  ),
-                  items:
-                      _courses
-                          .map(
-                            (c) => DropdownMenuItem<String>(
-                              value: c['id'].toString(),
-                              child: SizedBox(
-                                width: 220, // Adjust as needed for your layout
-                                child: Text(
-                                  '${c['code']} - ${c['name']}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                      items:
+                          _levels
+                              .map(
+                                (l) => DropdownMenuItem<String>(
+                                  value: l,
+                                  child: Text('$l Level'),
                                 ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedCourseId = val;
-                    });
-                  },
-                  validator:
-                      (val) =>
-                          val == null || val.isEmpty ? 'Select course' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  initialValue: _totalSessions.toString(),
-                  decoration: const InputDecoration(
-                    labelText: 'Total Sessions',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter total sessions';
-                    }
-                    final num = int.tryParse(value);
-                    if (num == null || num < 1) {
-                      return 'Please enter a valid number';
-                    }
-                    return null;
-                  },
-                  onChanged: (value) {
-                    final num = int.tryParse(value);
-                    if (num != null) {
-                      setState(() => _totalSessions = num);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  initialValue: (_passThreshold * 100).toStringAsFixed(1),
-                  decoration: const InputDecoration(
-                    labelText: 'Pass Threshold (%)',
-                    border: OutlineInputBorder(),
-                    suffixText: '%',
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter pass threshold';
-                    }
-                    final percent = double.tryParse(value);
-                    if (percent == null || percent < 0 || percent > 100) {
-                      return 'Please enter a valid percentage';
-                    }
-                    return null;
-                  },
-                  onChanged: (value) {
-                    final percent = double.tryParse(value);
-                    if (percent != null) {
-                      setState(() => _passThreshold = percent / 100);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _startTime == null
-                            ? 'Start Time: Not selected'
-                            : 'Start Time: ${_startTime!.toLocal().toString().substring(0, 16)}',
-                      ),
+                              )
+                              .toList(),
+                      onChanged: (val) async {
+                        setState(() {
+                          _selectedLevel = val;
+                          _selectedCourseId = null;
+                          _courses = [];
+                        });
+                        await _fetchCourses();
+                      },
+                      validator:
+                          (val) =>
+                              val == null || val.isEmpty
+                                  ? 'Please select a level'
+                                  : null,
                     ),
-                    TextButton(
-                      child: const Text('Pick Start'),
-                      onPressed: () async {
+                    SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedCourseId,
+                      decoration: InputDecoration(
+                        labelText: 'Course',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        prefixIcon: Icon(Icons.book),
+                      ),
+                      isExpanded: true,
+                      items:
+                          _courses
+                              .map(
+                                (c) => DropdownMenuItem<String>(
+                                  value: c['id'].toString(),
+                                  child: Text(
+                                    '${c['code']} - ${c['name']}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedCourseId = val;
+                        });
+                      },
+                      validator:
+                          (val) =>
+                              val == null || val.isEmpty
+                                  ? 'Please select a course'
+                                  : null,
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+
+                // Location Settings Section
+                _buildSectionCard(
+                  context,
+                  title: 'Location Settings',
+                  icon: Icons.location_on,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _latitudeController,
+                            decoration: InputDecoration(
+                              labelText: 'Latitude',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              prefixIcon: Icon(Icons.my_location),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged:
+                                (val) => setState(
+                                  () => _latitude = double.tryParse(val),
+                                ),
+                            validator:
+                                (val) =>
+                                    val == null || val.isEmpty
+                                        ? 'Required'
+                                        : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _longitudeController,
+                            decoration: InputDecoration(
+                              labelText: 'Longitude',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              prefixIcon: Icon(Icons.place),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged:
+                                (val) => setState(
+                                  () => _longitude = double.tryParse(val),
+                                ),
+                            validator:
+                                (val) =>
+                                    val == null || val.isEmpty
+                                        ? 'Required'
+                                        : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_isLoadingLocation)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            decoration: InputDecoration(
+                              labelText: 'Radius (meters)',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              prefixIcon: Icon(Icons.radio_button_unchecked),
+                              suffixText: 'm',
+                            ),
+                            keyboardType: TextInputType.number,
+                            initialValue: _radius.toString(),
+                            onChanged:
+                                (val) => setState(
+                                  () => _radius = double.tryParse(val) ?? 50.0,
+                                ),
+                            validator:
+                                (val) =>
+                                    val == null || val.isEmpty
+                                        ? 'Required'
+                                        : null,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          icon:
+                              _isLoadingLocation
+                                  ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                  : Icon(Icons.my_location),
+                          label: Text('Use GPS'),
+                          onPressed:
+                              _isLoadingLocation ? null : _getCurrentLocation,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green[600],
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+
+                // Session Parameters Section
+                _buildSectionCard(
+                  context,
+                  title: 'Session Parameters',
+                  icon: Icons.tune,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: _totalSessions.toString(),
+                            decoration: InputDecoration(
+                              labelText: 'Total Periods',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              prefixIcon: Icon(Icons.repeat),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter total sessions';
+                              }
+                              final num = int.tryParse(value);
+                              if (num == null || num < 1) {
+                                return 'Please enter a valid number';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              final num = int.tryParse(value);
+                              if (num != null) {
+                                setState(() => _totalSessions = num);
+                              }
+                            },
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: (_passThreshold * 100)
+                                .toStringAsFixed(1),
+                            decoration: InputDecoration(
+                              labelText: 'Pass Threshold',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              prefixIcon: Icon(Icons.percent),
+                              suffixText: '%',
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter pass threshold';
+                              }
+                              final percent = double.tryParse(value);
+                              if (percent == null ||
+                                  percent < 0 ||
+                                  percent > 100) {
+                                return 'Please enter a valid percentage';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              final percent = double.tryParse(value);
+                              if (percent != null) {
+                                setState(() => _passThreshold = percent / 100);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+
+                // Schedule Section
+                _buildSectionCard(
+                  context,
+                  title: 'Schedule',
+                  icon: Icons.schedule,
+                  children: [
+                    _buildDateTimeSelector(
+                      context,
+                      'Start Time',
+                      _startTime,
+                      Icons.play_arrow,
+                      () async {
                         final picked = await showDateTimePicker(
                           context,
                           _startTime,
@@ -451,21 +590,13 @@ class _LecturerConfigurationScreenState
                         if (picked != null) setState(() => _startTime = picked);
                       },
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _endTime == null
-                            ? 'End Time: Not selected'
-                            : 'End Time: ${_endTime!.toLocal().toString().substring(0, 16)}',
-                      ),
-                    ),
-                    TextButton(
-                      child: const Text('Pick End'),
-                      onPressed: () async {
+                    SizedBox(height: 16),
+                    _buildDateTimeSelector(
+                      context,
+                      'End Time',
+                      _endTime,
+                      Icons.stop,
+                      () async {
                         final picked = await showDateTimePicker(
                           context,
                           _endTime,
@@ -475,20 +606,45 @@ class _LecturerConfigurationScreenState
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.add),
-                  label:
-                      _isCreating
-                          ? const Text('Creating...')
-                          : const Text('Create Session'),
-                  onPressed: _isCreating ? null : () => _createSession(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(48),
+                SizedBox(height: 32),
+
+                // Create Session Button
+                Container(
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    icon:
+                        _isCreating
+                            ? SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                            : Icon(Icons.add_circle, size: 24),
+                    label: Text(
+                      _isCreating ? 'Creating Session...' : 'Create Session',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    onPressed:
+                        _isCreating ? null : () => _createSession(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 4,
+                    ),
                   ),
                 ),
+                SizedBox(height: 16),
               ],
             ),
           ),
@@ -515,5 +671,81 @@ class _LecturerConfigurationScreenState
     );
     if (time == null) return null;
     return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  Widget _buildSectionCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Theme.of(context).primaryColor,
+                    size: 20,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateTimeSelector(
+    BuildContext context,
+    String label,
+    DateTime? dateTime,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: Theme.of(context).primaryColor),
+        title: Text(label),
+        subtitle: Text(
+          dateTime == null
+              ? 'Not selected'
+              : dateTime.toLocal().toString().substring(0, 16),
+          style: TextStyle(
+            color: dateTime == null ? Colors.grey[600] : Colors.black87,
+            fontWeight: dateTime == null ? FontWeight.normal : FontWeight.w500,
+          ),
+        ),
+        trailing: Icon(Icons.calendar_today, color: Colors.grey[600]),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 }
