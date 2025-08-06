@@ -16,6 +16,25 @@ import '../models/face_exception.dart';
 import '../utils/location_utils.dart';
 
 class AppProvider with ChangeNotifier {
+  /// Fetch attendance records for a session (lecturer workflow)
+  Future<void> fetchLecturerSessionAttendance(String sessionId) async {
+    try {
+      _setLoading(true, 'Loading attendance records...');
+      final records = await coreServices.getLecturerSessionAttendance(
+        sessionId,
+      );
+      _attendanceRecords = records;
+      debugPrint(
+        '[AppProvider] Loaded ${records.length} attendance records for session $sessionId',
+      );
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[AppProvider] Error loading attendance records: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   /// Fetch and update the current user profile (ensures PK is used for id)
   Future<void> fetchProfile() async {
     debugPrint('[AppProvider] Fetching latest user profile...');

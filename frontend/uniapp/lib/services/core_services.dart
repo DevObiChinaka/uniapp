@@ -11,6 +11,33 @@ import '../models/models.dart';
 import '../models/course.dart';
 
 class CoreServices {
+  /// Fetch attendance records for a session (lecturer endpoint)
+  Future<List<AttendanceRecord>> getLecturerSessionAttendance(
+    String sessionId,
+  ) async {
+    try {
+      final response = await _dio.get(
+        '/lecturer/session/$sessionId/attendance/',
+      );
+      if (response.statusCode == 200 &&
+          response.data != null &&
+          response.data['attendance_records'] != null) {
+        final List<dynamic> data = response.data['attendance_records'];
+        debugPrint(
+          '[getLecturerSessionAttendance] Records: ' + data.length.toString(),
+        );
+        return data.map((json) => AttendanceRecord.fromJson(json)).toList();
+      }
+      debugPrint(
+        '[getLecturerSessionAttendance] Unexpected response: ${response.statusCode} - ${response.data}',
+      );
+      return [];
+    } on DioException catch (e) {
+      _handleApiError(e, 'Get lecturer session attendance');
+      return [];
+    }
+  }
+
   /// Fetch a course by its ID
   Future<Course?> getCourse(String courseId) async {
     try {
@@ -27,6 +54,29 @@ class CoreServices {
     } catch (e) {
       debugPrint('getCourse error: $e');
       return null;
+    }
+  }
+
+  /// Fetch enrolled students for a course (lecturer endpoint)
+  Future<List<User>> getCourseStudents(String courseId) async {
+    try {
+      final response = await _dio.get('/lecturer/course/$courseId/students/');
+      if (response.statusCode == 200 &&
+          response.data != null &&
+          response.data['students'] != null) {
+        final List<dynamic> data = response.data['students'];
+        debugPrint(
+          '[getCourseStudents] Students: ${data.length} for course $courseId',
+        );
+        return data.map((json) => User.fromJson(json)).toList();
+      }
+      debugPrint(
+        '[getCourseStudents] Unexpected response: ${response.statusCode} - ${response.data}',
+      );
+      return [];
+    } on DioException catch (e) {
+      _handleApiError(e, 'Get course students');
+      return [];
     }
   }
 

@@ -1,4 +1,3 @@
-
 class AppRoutes {
   // Route path names
   static const splash = '/';

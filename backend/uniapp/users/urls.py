@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterUserView, LoginView, profile_view, verify_token, biometric_login, verify_password, change_password, user_info
+from .views import RegisterUserView, LoginView, profile_view, verify_token, biometric_login, verify_password, change_password, user_info, LecturerCoursesWithSessionsAPIView, LecturerCourseStudentsAPIView, LecturerSessionAttendanceAPIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -38,6 +38,15 @@ urlpatterns = [
     path('exit/process/', views.ExitViewSet.as_view({'post': 'process'}), name='exit-process'),
     path('users/<int:pk>/update-tag/', views.UserViewSet.as_view({'patch': 'update_tag'}), name='user-update-tag'),
     path('fcm/register/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm-register'),
+
+    # Lecturer endpoint: get attendance records for a session
+    path('lecturer/session/<int:session_id>/attendance/', LecturerSessionAttendanceAPIView.as_view(), name='lecturer-session-attendance'),
+
+    # Lecturer endpoint: get students for a course
+    path('lecturer/course/<int:course_id>/students/', LecturerCourseStudentsAPIView.as_view(), name='lecturer-course-students'),
+
+    # Lecturer endpoint: get courses with sessions
+    path('lecturer/courses-with-sessions/', LecturerCoursesWithSessionsAPIView.as_view(), name='lecturer-courses-with-sessions'),
     path('fcm/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm'),
     path('ble-status/', views.BLEStatusAPIView.as_view(), name='ble-status'),  # New BLE status endpoint
     

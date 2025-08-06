@@ -264,3 +264,36 @@ class FCMTokenSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['fcm_token']
+
+class SessionSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Session
+        fields = ['id', 'is_active', 'current_period', 'total_sessions', 'start_time', 'end_time']
+
+class CourseWithSessionsSerializer(serializers.ModelSerializer):
+    sessions = serializers.SerializerMethodField()
+    programs = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+
+    class Meta:
+        model = Course
+        fields = ['id', 'code', 'name', 'level', 'programs', 'sessions']
+
+    def get_sessions(self, obj):
+        # Context should provide 'lecturer_sessions' queryset
+        lecturer_sessions = self.context.get('lecturer_sessions', Session.objects.none())
+        course_sessions = lecturer_sessions.filter(course=obj)
+        return SessionSummarySerializer(course_sessions, many=True).data
+
+class AttendanceRecordSummarySerializer(serializers.ModelSerializer):
+    user_id = serializers.SerializerMethodField()
+    session_id = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Attendance
+        fields = ['id', 'user_id', 'session_id', 'period', 'timestamp', 'method']
+    
+    def get_user_id(self, obj):
+        return str(obj.user.id) if obj.user else None
+    
+    def get_session_id(self, obj):
+        return str(obj.session.id) if obj.session else None

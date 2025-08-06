@@ -18,6 +18,7 @@ class LecturerAttendanceScreen extends StatefulWidget {
 class _LecturerAttendanceScreenState extends State<LecturerAttendanceScreen> {
   Session? _session;
   bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
@@ -26,40 +27,133 @@ class _LecturerAttendanceScreenState extends State<LecturerAttendanceScreen> {
   }
 
   Future<void> _fetchSession() async {
-    setState(() => _loading = true);
-    final appProvider = Provider.of<AppProvider>(context, listen: false);
-    final username = appProvider.getCurrentUser()?.username ?? '';
-    final sessions = await appProvider.fetchLecturerSessions(username);
-    await appProvider.fetchPrograms();
-    Session? activeSession;
+    if (_loading) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
     try {
-      activeSession = sessions.firstWhere((s) => s.isActive);
-    } catch (_) {
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      final user = appProvider.getCurrentUser();
+      final username = user?.username;
+
+      if (username == null || username.isEmpty) {
+        throw Exception('Please log in to continue');
+      }
+
+      // Start both fetches in parallel
+      final sessionsFuture = appProvider.fetchLecturerSessions(username);
+      final programsFuture = appProvider.fetchPrograms();
+
+      // Wait for both to complete
+      final results = await Future.wait([sessionsFuture, programsFuture]);
+      final sessions = results[0] as List<Session>;
+
+      // Find active or most recent session
+      Session? activeSession;
       if (sessions.isNotEmpty) {
-        activeSession = sessions.first;
+        activeSession = sessions.firstWhere(
+          (s) => s.isActive,
+          orElse:
+              () => sessions
+                  .where((s) => s.endTime?.isAfter(DateTime.now()) ?? true)
+                  .fold(
+                    sessions.first,
+                    (a, b) => a.startTime.isAfter(b.startTime) ? a : b,
+                  ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _session = activeSession;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
       }
     }
-    setState(() {
-      _session = activeSession;
-      _loading = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Attendance'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : _fetchSession,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Attendance')),
-        body: const Center(child: CircularProgressIndicator()),
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _error!,
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchSession,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       );
     }
+
     final session = _session;
     if (session == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Attendance')),
-        body: Center(child: Text('No sessions available.')),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('No active sessions found.'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (_) => SessionConfigScreen(
+                          session:
+                              Session.empty(), // Using empty session for new creation
+                        ),
+                  ),
+                );
+                if (result == true) {
+                  _fetchSession();
+                }
+              },
+              child: const Text('Create Session'),
+            ),
+          ],
+        ),
       );
     }
+
     final appProvider = Provider.of<AppProvider>(context);
     final attendanceRecords =
         appProvider.attendanceRecords
@@ -236,9 +330,19 @@ class _LecturerAttendanceScreenState extends State<LecturerAttendanceScreen> {
       ),
     );
     if (result == true) {
+      await _refreshAttendanceData(session);
+    }
+  }
+
+  Future<void> _refreshAttendanceData(Session session) async {
+    setState(() => _loading = true);
+    try {
       final appProvider = Provider.of<AppProvider>(context, listen: false);
       await appProvider.fetchAttendanceRecords(session.id);
-      setState(() {});
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _loading = false);
     }
   }
 
@@ -258,10 +362,9 @@ class _LecturerAttendanceScreenState extends State<LecturerAttendanceScreen> {
   }
 
   Future<void> _manageAttendance(BuildContext context, Session session) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => ManageAttendanceScreen(session: session),
-      ),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => ManageAttendanceScreen()));
+    await _refreshAttendanceData(session);
   }
 }

@@ -104,6 +104,15 @@ class User {
             '[User.fromJson] Failed to parse program string: $rawProgram',
           );
         }
+      } else if (rawProgram is int) {
+        // Backend is sending program ID as integer, create a minimal Program object
+        mappedProgram = prog.Program(
+          id: rawProgram,
+          name: 'Program $rawProgram', // Fallback name
+        );
+        debugPrint(
+          '[User.fromJson] Converted program ID $rawProgram to Program object',
+        );
       } else {
         debugPrint(
           '[User.fromJson] Unknown program type: ${rawProgram.runtimeType}',
@@ -333,6 +342,11 @@ class Session {
   factory Session.fromJson(Map<String, dynamic> json) {
     final lecturerUsername = (json['lecturer_username'] ?? '').toString();
     debugPrint('Session.fromJson: lecturer_username = $lecturerUsername');
+
+    // Debug the course data structure
+    debugPrint('Session.fromJson: Raw course data = ${json['course']}');
+    debugPrint('Session.fromJson: Raw course_id data = ${json['course_id']}');
+
     return Session(
       id: (json['id'] ?? '').toString(),
       lecturerUsername: lecturerUsername,

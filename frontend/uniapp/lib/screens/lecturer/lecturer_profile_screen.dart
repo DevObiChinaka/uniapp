@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:go_router/go_router.dart';
 import '../app_provider.dart';
 import '../../models/models.dart';
+import '../../routes/app_routes.dart';
+import '../change_password_screen.dart';
 
 class LecturerProfileScreen extends StatefulWidget {
   const LecturerProfileScreen({super.key});
@@ -16,6 +19,7 @@ class LecturerProfileScreen extends StatefulWidget {
 class _LecturerProfileScreenState extends State<LecturerProfileScreen> {
   User? _user;
   bool _loading = true;
+  bool _loggingOut = false;
   String? _error;
 
   @override
@@ -255,23 +259,89 @@ class _LecturerProfileScreenState extends State<LecturerProfileScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              // Change Password button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final provider = Provider.of<AppProvider>(
-                      context,
-                      listen: false,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const ChangePasswordScreen(),
+                      ),
                     );
-                    final success = await provider.logout();
-                    if (success && context.mounted) {
-                      Navigator.of(
-                        context,
-                      ).pushNamedAndRemoveUntil('/', (route) => false);
-                    }
                   },
-                  icon: Icon(Icons.logout),
-                  label: Text('Logout'),
+                  icon: const Icon(Icons.lock),
+                  label: const Text('Change Password'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Logout button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed:
+                      _loggingOut
+                          ? null
+                          : () async {
+                            setState(() {
+                              _loggingOut = true;
+                            });
+
+                            try {
+                              final provider = Provider.of<AppProvider>(
+                                context,
+                                listen: false,
+                              );
+                              final success = await provider.logout();
+                              if (success && context.mounted) {
+                                context.go(AppRoutes.login);
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Failed to logout. Please try again.',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error: ${e.toString()}'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() {
+                                  _loggingOut = false;
+                                });
+                              }
+                            }
+                          },
+                  icon:
+                      _loggingOut
+                          ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                          : const Icon(Icons.logout),
+                  label: Text(_loggingOut ? 'Logging out...' : 'Logout'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,

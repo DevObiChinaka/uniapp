@@ -1,3 +1,10 @@
+# --- Lecturer: Get Attendance Records for Session ---
+# --- Lecturer: Get Students for Course ---
+from rest_framework.generics import get_object_or_404
+# --- Lecturer: Get Courses with Sessions ---
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from .models import Geofence
 from .serializers import GeofenceSerializer
 from .models import Program
@@ -20,15 +27,62 @@ from django.conf import settings
 import hashlib
 import hmac
 import json
-
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog, Course
 from .serializers import (
     UserSerializer, SessionSerializer, AttendanceSerializer,
     LeaveRequestSerializer, ExitLogSerializer, SystemLogSerializer,
-    UserRegistrationSerializer, FCMTokenSerializer, CourseSerializer
+    UserRegistrationSerializer, FCMTokenSerializer, CourseSerializer, CourseWithSessionsSerializer,
+    AttendanceRecordSummarySerializer
 )
 # --- Course ViewSet ---
 from rest_framework import filters
+
+
+
+class LecturerSessionAttendanceAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        user = request.user
+        if getattr(user, 'role', None) != 'lecturer':
+            return Response({'error': 'Permission denied'}, status=403)
+        session = get_object_or_404(Session, id=session_id)
+        # Only allow if lecturer owns the session
+        if session.lecturer != user:
+            return Response({'error': 'Permission denied'}, status=403)
+        records = Attendance.objects.filter(session=session)
+        serializer = AttendanceRecordSummarySerializer(records, many=True)
+        return Response({'attendance_records': serializer.data})
+class LecturerCourseStudentsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, course_id):
+        user = request.user
+        if getattr(user, 'role', None) != 'lecturer':
+            return Response({'error': 'Permission denied'}, status=403)
+        course = get_object_or_404(Course, id=course_id)
+        # Get all programs linked to this course
+        programs = course.programs.all()
+        # Get all students in those programs
+        students = User.objects.filter(role='student', program__in=programs).distinct()
+        serializer = UserSerializer(students, many=True)
+        return Response({'students': serializer.data})
+class LecturerCoursesWithSessionsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if getattr(user, 'role', None) != 'lecturer':
+            return Response({'error': 'Permission denied'}, status=403)
+        sessions = Session.objects.filter(lecturer=user)
+        course_ids = sessions.values_list('course_id', flat=True).distinct()
+        courses = Course.objects.filter(id__in=course_ids).prefetch_related('programs', 'sessions')
+        serializer = CourseWithSessionsSerializer(
+            courses,
+            many=True,
+            context={'lecturer_sessions': sessions}
+        )
+        return Response({'courses': serializer.data})
 class CourseViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer

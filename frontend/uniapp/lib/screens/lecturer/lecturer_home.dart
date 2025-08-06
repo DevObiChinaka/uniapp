@@ -4,7 +4,7 @@ import '../app_provider.dart';
 import 'lecturer_dashboard.dart';
 import 'lecturer_sessions_screen.dart';
 import 'lecturer_configuration_screen.dart';
-import 'lecturer_attendance_screen.dart';
+import 'manage_attendance_screen.dart';
 import 'lecturer_profile_screen.dart';
 
 class LecturerHome extends StatefulWidget {
@@ -18,11 +18,11 @@ class _LecturerHomeState extends State<LecturerHome> {
   int _selectedIndex = 0;
   bool _userLoaded = false;
 
-  final List<Widget> _screens = [
-    LecturerDashboard(),
+  List<Widget> get _screens => [
+    LecturerDashboard(onProfileTap: () => _onItemTapped(4)),
     LecturerSessionsScreen(),
     LecturerConfigurationScreen(),
-    LecturerAttendanceScreen(),
+    ManageAttendanceScreen(),
     LecturerProfileScreen(),
   ];
 
@@ -55,13 +55,16 @@ class _LecturerHomeState extends State<LecturerHome> {
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Sessions'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Config'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle),
-            label: 'Attendance',
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.schedule),
+            label: 'Sessions',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Config'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Manage'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
