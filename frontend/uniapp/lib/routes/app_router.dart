@@ -4,7 +4,6 @@ import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/student/dashboard_screen.dart' as student;
 import '../screens/student/attendance_screen.dart' as student;
-import '../screens/student/exit_screen.dart' as student;
 import '../screens/student/profile_screen.dart' as student;
 import '../screens/lecturer/lecturer_home.dart';
 import '../screens/security_dashboard.dart';

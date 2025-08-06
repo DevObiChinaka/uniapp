@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import '../app_provider.dart';
-import '../../models/program.dart';
 
 class LecturerConfigurationScreen extends StatefulWidget {
   const LecturerConfigurationScreen({super.key});
