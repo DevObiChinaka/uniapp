@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import '../app_provider.dart';
 import '../../models/models.dart';
@@ -223,7 +224,7 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
                 ),
                 SizedBox(height: 16),
                 Text(
-                  'This will generate a CSV file with attendance records for all sessions.',
+                  'You can choose where to save the CSV file with attendance records for all sessions.',
                   style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
               ],
@@ -278,7 +279,11 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
                 ),
               ),
               SizedBox(width: 12),
-              Text('Generating CSV for ${_getCourseDisplayName(courseId)}...'),
+              Expanded(
+                child: Text(
+                  'Generating CSV for ${_getCourseDisplayName(courseId)}...',
+                ),
+              ),
             ],
           ),
           duration: const Duration(seconds: 3),
@@ -324,44 +329,52 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white, size: 20),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Attendance data exported successfully!\nFile: $filename',
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Attendance data exported successfully!\nFile: $filename',
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
           ),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 4),
-        ),
-      );
+        );
+      } catch (e) {
+        debugPrint('Error showing success message: $e');
+      }
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error, color: Colors.white, size: 20),
-              SizedBox(width: 12),
-              Expanded(child: Text('Export failed: $e')),
-            ],
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(child: Text('Export failed: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _exportAttendance(context, courseId, sessions),
+            ),
           ),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'RETRY',
-            textColor: Colors.white,
-            onPressed: () => _exportAttendance(context, courseId, sessions),
-          ),
-        ),
-      );
+        );
+      } catch (snackBarError) {
+        debugPrint('Error showing error message: $snackBarError');
+      }
     } finally {
       if (mounted) {
         setState(() => _isExporting = false);
@@ -413,7 +426,7 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
 
     // Create headers with session IDs
     final sessionHeaders = sessions
-        .map((s) => 'Session_${s.id.substring(0, 8)}')
+        .map((s) => 'Session_${_safeSessionId(s.id)}')
         .join(',');
     buffer.writeln(
       'Student ID,Student Name,University ID,Total Present,Attendance Rate,$sessionHeaders',
@@ -504,26 +517,339 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
     return field;
   }
 
+  String _safeSessionId(String sessionId, [int maxLength = 8]) {
+    // Safely truncate session ID to specified length
+    return sessionId.length > maxLength
+        ? sessionId.substring(0, maxLength)
+        : sessionId;
+  }
+
+  Future<bool> _requestStoragePermissions() async {
+    try {
+      // For modern Android (API 29+), we use scoped storage
+      // App-specific directories (Documents) don't need permissions
+      // External storage (Downloads) may need permissions on older versions
+
+      if (Platform.isAndroid) {
+        // For Android 13+ (API 33+), photos/media permissions are handled differently
+        // But for file operations to app directories, no permissions needed
+
+        // Only request storage permission if targeting Downloads on older Android
+        final storageStatus = await Permission.storage.status;
+
+        if (storageStatus.isGranted || storageStatus.isLimited) {
+          return true;
+        }
+
+        // For newer Android versions, we'll mainly use app Documents directory
+        // which doesn't require permissions
+        return true;
+      }
+
+      // For iOS, no explicit storage permissions needed for Documents directory
+      return true;
+    } catch (e) {
+      debugPrint('Error checking storage permissions: $e');
+      // If permission check fails, continue with app Documents directory
+      return true;
+    }
+  }
+
   Future<void> _saveAndShareCSV(
     BuildContext context,
     String csvData,
     String filename,
   ) async {
     try {
-      // Get the documents directory
-      final directory = await getApplicationDocumentsDirectory();
+      // Check storage permissions first
+      final hasPermission = await _requestStoragePermissions();
+      if (!hasPermission) {
+        // If permission denied, fall back to preview dialog
+        if (mounted) {
+          await _showCSVPreviewDialog(context, csvData, filename);
+        }
+        return;
+      }
+
+      // Show location selection dialog
+      final selectedLocation = await _showSaveLocationDialog(context);
+      if (selectedLocation == null) return; // User cancelled
+
+      // Get the selected directory
+      Directory directory;
+      String locationName;
+
+      if (selectedLocation == 'downloads') {
+        // Try to get Downloads directory
+        try {
+          final List<Directory>? externalDirs =
+              await getExternalStorageDirectories(
+                type: StorageDirectory.downloads,
+              );
+          if (externalDirs != null && externalDirs.isNotEmpty) {
+            directory = externalDirs.first;
+            locationName = 'Downloads';
+          } else {
+            // Fallback: try manual Downloads path
+            directory = Directory('/storage/emulated/0/Download');
+            if (!await directory.exists()) {
+              // Final fallback to Documents
+              directory = await getApplicationDocumentsDirectory();
+              locationName = 'Documents (Downloads not accessible)';
+            } else {
+              locationName = 'Downloads';
+            }
+          }
+        } catch (e) {
+          // Fallback to Documents if Downloads access fails
+          directory = await getApplicationDocumentsDirectory();
+          locationName = 'Documents (Downloads not accessible)';
+        }
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+        locationName = 'Documents';
+      }
+
       final filePath = '${directory.path}/$filename';
+
+      // Show saving indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Saving to $locationName folder...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
 
       // Create and write the file
       final file = File(filePath);
       await file.writeAsString(csvData);
 
-      // Show options dialog
-      await _showExportSuccessDialog(context, file, filename, csvData);
+      // Show success dialog with actual save location
+      if (mounted) {
+        await _showExportSuccessDialog(
+          context,
+          file,
+          filename,
+          csvData,
+          locationName,
+        );
+      }
     } catch (e) {
       // Fallback to preview dialog if file operations fail
-      await _showCSVPreviewDialog(context, csvData, filename);
+      if (!mounted) return;
+
+      // Show error with helpful message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text('Could not save file. Showing preview instead.'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+
+      if (mounted) {
+        await _showCSVPreviewDialog(context, csvData, filename);
+      }
     }
+  }
+
+  Future<String?> _showSaveLocationDialog(BuildContext context) async {
+    return showDialog<String>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.folder,
+                    color: Theme.of(context).primaryColor,
+                    size: 24,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Choose Save Location',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Where would you like to save the CSV file?',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                ),
+                SizedBox(height: 20),
+
+                // Downloads option
+                InkWell(
+                  onTap: () => Navigator.of(context).pop('downloads'),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.blue[200]!),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.blue[50],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.download,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Downloads Folder',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: Colors.blue[800],
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Easily accessible from file manager\nRecommended for sharing',
+                                style: TextStyle(
+                                  color: Colors.blue[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: Colors.blue,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 12),
+
+                // Documents option
+                InkWell(
+                  onTap: () => Navigator.of(context).pop('documents'),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.green[200]!),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.green[50],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.folder_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Documents Folder',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: Colors.green[800],
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Secure app documents directory\nAlways accessible',
+                                style: TextStyle(
+                                  color: Colors.green[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: Colors.green,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+            ],
+          ),
+    );
   }
 
   Future<void> _showExportSuccessDialog(
@@ -531,6 +857,7 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
     File file,
     String filename,
     String csvData,
+    String locationName,
   ) async {
     return showDialog(
       context: context,
@@ -596,11 +923,22 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                'Saved to: ${file.path}',
+                                'Saved to: $locationName folder',
                                 style: TextStyle(
                                   fontSize: 12,
+                                  color: Colors.blue[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                file.path,
+                                style: TextStyle(
+                                  fontSize: 10,
                                   color: Colors.grey[600],
                                 ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -645,13 +983,17 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
                           () {
                             Clipboard.setData(ClipboardData(text: csvData));
                             Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('CSV data copied to clipboard!'),
-                                backgroundColor: Colors.green,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'CSV data copied to clipboard!',
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
                           },
                         ),
                       ),
@@ -836,13 +1178,15 @@ class _ManageAttendanceScreenState extends State<ManageAttendanceScreen> {
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: csvData));
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('CSV data copied to clipboard!'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('CSV data copied to clipboard!'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).primaryColor,
