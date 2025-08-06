@@ -170,154 +170,793 @@ class _CourseAttendanceDetailScreenState
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Attendance for ${_getAppBarCourseCode()}')),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-              ? Center(
-                child: Text(_error!, style: TextStyle(color: Colors.red)),
-              )
-              : students.isEmpty
-              ? const Center(
-                child: Text(
-                  'No students enrolled in this course yet.',
-                  style: TextStyle(fontSize: 16),
-                ),
-              )
-              : maxPeriods == 0
-              ? const Center(
-                child: Text(
-                  'No attendance periods have been conducted yet.',
-                  style: TextStyle(fontSize: 16),
-                ),
-              )
-              : Column(
-                children: [
-                  // Summary section
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).primaryColor,
+              Theme.of(context).primaryColor.withValues(alpha: 0.8),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header Section
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          'Course: ${_getCourseDisplayText()}',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                        Container(
+                          padding: EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.arrow_back_ios,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            padding: EdgeInsets.all(6),
+                            constraints: BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 16,
-                          runSpacing: 4,
-                          children: [
-                            Text('Enrolled Students: ${students.length}'),
-                            Text('Periods Conducted: $maxPeriods'),
-                            Text('Total Records: ${attendanceRecords.length}'),
-                          ],
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              'Attendance Details',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.refresh,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            onPressed: _fetchAttendance,
+                            padding: EdgeInsets.all(6),
+                            constraints: BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: _fetchAttendance,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SizedBox(
-                          width:
-                              300 +
-                              maxPeriods *
-                                  60, // Reduced width per column to match smaller cells
-                          child: DataTable(
-                            columnSpacing: 12, // Reduced column spacing
-                            horizontalMargin: 8, // Reduced horizontal margin
-                            columns: [
-                              const DataColumn(label: Text('Matric No')),
-                              const DataColumn(label: Text('Full Name')),
-                              for (int p = 1; p <= maxPeriods; p++)
-                                DataColumn(
-                                  label: Text('P$p'), // Shorter column headers
-                                ),
-                            ],
-                            rows: [
-                              for (final student in pageStudents)
-                                DataRow(
-                                  cells: [
-                                    DataCell(
-                                      Text(student.universityId ?? student.id),
-                                    ),
-                                    DataCell(Text(student.name)),
-                                    for (int p = 1; p <= maxPeriods; p++)
-                                      DataCell(
-                                        _buildAttendanceCell(
-                                          getAttendance(student.id, p),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        ),
+                    SizedBox(height: 20),
+                    Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    ),
-                  ),
-                  if (students.isNotEmpty && totalPages > 1)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Column(
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            onPressed:
-                                _currentPage > 0
-                                    ? () => setState(() => _currentPage--)
-                                    : null,
+                          Icon(
+                            Icons.analytics_outlined,
+                            size: 48,
+                            color: Colors.white,
                           ),
-                          Text('Page ${_currentPage + 1} of $totalPages'),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward),
-                            onPressed:
-                                _currentPage < totalPages - 1
-                                    ? () => setState(() => _currentPage++)
-                                    : null,
+                          SizedBox(height: 12),
+                          Text(
+                            _getAppBarCourseCode(),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Course Attendance Overview',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
                     ),
-                ],
+                  ],
+                ),
               ),
+
+              // Content Section
+              Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(top: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
+                  ),
+                  child:
+                      _isLoading
+                          ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Loading attendance data...',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : _error != null
+                          ? Container(
+                            padding: EdgeInsets.all(24),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[50],
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.red[200]!,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.error_outline,
+                                          size: 48,
+                                          color: Colors.red[400],
+                                        ),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'Error Loading Data',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.red[700],
+                                          ),
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          _error!,
+                                          style: TextStyle(
+                                            color: Colors.red[600],
+                                            fontSize: 14,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        SizedBox(height: 16),
+                                        ElevatedButton(
+                                          onPressed: _fetchAttendance,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red[600],
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: Text('Retry'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          : students.isEmpty
+                          ? Container(
+                            padding: EdgeInsets.all(24),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[50],
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.blue[200]!,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.people_outline,
+                                          size: 48,
+                                          color: Colors.blue[400],
+                                        ),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'No Students Enrolled',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.blue[700],
+                                          ),
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          'No students are enrolled in this course yet.',
+                                          style: TextStyle(
+                                            color: Colors.blue[600],
+                                            fontSize: 14,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          : maxPeriods == 0
+                          ? Container(
+                            padding: EdgeInsets.all(24),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange[50],
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.orange[200]!,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.schedule_outlined,
+                                          size: 48,
+                                          color: Colors.orange[400],
+                                        ),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'No Sessions Conducted',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.orange[700],
+                                          ),
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          'No attendance periods have been conducted yet.',
+                                          style: TextStyle(
+                                            color: Colors.orange[600],
+                                            fontSize: 14,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          : Column(
+                            children: [
+                              // Summary Cards Section
+                              Container(
+                                margin: EdgeInsets.all(20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Course Overview',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                    SizedBox(height: 16),
+                                    Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.08,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _getCourseDisplayText(),
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color:
+                                                  Theme.of(
+                                                    context,
+                                                  ).primaryColor,
+                                            ),
+                                          ),
+                                          SizedBox(height: 16),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _buildStatCard(
+                                                  icon: Icons.people,
+                                                  title: 'Students',
+                                                  value: '${students.length}',
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                              SizedBox(width: 12),
+                                              Expanded(
+                                                child: _buildStatCard(
+                                                  icon: Icons.access_time,
+                                                  title: 'Periods',
+                                                  value: '$maxPeriods',
+                                                  color: Colors.green,
+                                                ),
+                                              ),
+                                              SizedBox(width: 12),
+                                              Expanded(
+                                                child: _buildStatCard(
+                                                  icon: Icons.check_circle,
+                                                  title: 'Records',
+                                                  value:
+                                                      '${attendanceRecords.length}',
+                                                  color: Colors.purple,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Attendance Table Section
+                              Expanded(
+                                child: Container(
+                                  margin: EdgeInsets.symmetric(horizontal: 20),
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            'Attendance Records',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.grey[800],
+                                            ),
+                                          ),
+                                          Spacer(),
+                                          if (students.isNotEmpty &&
+                                              totalPages > 1)
+                                            Container(
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[100],
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                'Page ${_currentPage + 1} of $totalPages',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[600],
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      SizedBox(height: 16),
+                                      Expanded(
+                                        child: RefreshIndicator(
+                                          onRefresh: _fetchAttendance,
+                                          child: SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: SingleChildScrollView(
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  border: Border.all(
+                                                    color: Colors.grey[300]!,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: DataTable(
+                                                  columnSpacing: 16,
+                                                  horizontalMargin: 16,
+                                                  headingRowColor:
+                                                      WidgetStateProperty.all(
+                                                        Colors.grey[50],
+                                                      ),
+                                                  columns: [
+                                                    DataColumn(
+                                                      label: Text(
+                                                        'Matric No',
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color:
+                                                              Colors.grey[700],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    DataColumn(
+                                                      label: Text(
+                                                        'Full Name',
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color:
+                                                              Colors.grey[700],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    for (
+                                                      int p = 1;
+                                                      p <= maxPeriods;
+                                                      p++
+                                                    )
+                                                      DataColumn(
+                                                        label: Container(
+                                                          padding:
+                                                              EdgeInsets.symmetric(
+                                                                horizontal: 8,
+                                                                vertical: 4,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: Theme.of(
+                                                                  context,
+                                                                ).primaryColor
+                                                                .withValues(
+                                                                  alpha: 0.1,
+                                                                ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  6,
+                                                                ),
+                                                          ),
+                                                          child: Text(
+                                                            'P$p',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color:
+                                                                  Theme.of(
+                                                                    context,
+                                                                  ).primaryColor,
+                                                              fontSize: 12,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                  rows: [
+                                                    for (final student
+                                                        in pageStudents)
+                                                      DataRow(
+                                                        cells: [
+                                                          DataCell(
+                                                            Text(
+                                                              student.universityId ??
+                                                                  student.id,
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                color:
+                                                                    Colors
+                                                                        .grey[800],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          DataCell(
+                                                            Text(
+                                                              student.name,
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                color:
+                                                                    Colors
+                                                                        .grey[800],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          for (
+                                                            int p = 1;
+                                                            p <= maxPeriods;
+                                                            p++
+                                                          )
+                                                            DataCell(
+                                                              _buildAttendanceCell(
+                                                                getAttendance(
+                                                                  student.id,
+                                                                  p,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                        ],
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              // Pagination Section
+                              if (students.isNotEmpty && totalPages > 1)
+                                Container(
+                                  margin: EdgeInsets.all(20),
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.05,
+                                        ),
+                                        blurRadius: 8,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color:
+                                              _currentPage > 0
+                                                  ? Theme.of(context)
+                                                      .primaryColor
+                                                      .withValues(alpha: 0.1)
+                                                  : Colors.grey[100],
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: IconButton(
+                                          icon: Icon(
+                                            Icons.arrow_back_ios,
+                                            color:
+                                                _currentPage > 0
+                                                    ? Theme.of(
+                                                      context,
+                                                    ).primaryColor
+                                                    : Colors.grey[400],
+                                          ),
+                                          onPressed:
+                                              _currentPage > 0
+                                                  ? () => setState(
+                                                    () => _currentPage--,
+                                                  )
+                                                  : null,
+                                        ),
+                                      ),
+                                      SizedBox(width: 16),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).primaryColor,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${_currentPage + 1} of $totalPages',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 16),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color:
+                                              _currentPage < totalPages - 1
+                                                  ? Theme.of(context)
+                                                      .primaryColor
+                                                      .withValues(alpha: 0.1)
+                                                  : Colors.grey[100],
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: IconButton(
+                                          icon: Icon(
+                                            Icons.arrow_forward_ios,
+                                            color:
+                                                _currentPage < totalPages - 1
+                                                    ? Theme.of(
+                                                      context,
+                                                    ).primaryColor
+                                                    : Colors.grey[400],
+                                          ),
+                                          onPressed:
+                                              _currentPage < totalPages - 1
+                                                  ? () => setState(
+                                                    () => _currentPage++,
+                                                  )
+                                                  : null,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                              SizedBox(height: 20),
+                            ],
+                          ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildAttendanceCell(bool? isPresent) {
     if (isPresent == null) {
-      return const SizedBox(
+      return Container(
         width: 40,
-        height: 32,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
         child: Center(
-          child: Text('-', style: TextStyle(color: Colors.grey, fontSize: 16)),
+          child: Text(
+            '-',
+            style: TextStyle(
+              color: Colors.grey[500],
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
       );
     }
-    if (isPresent) {
-      return const SizedBox(
-        width: 40,
-        height: 32,
-        child: Center(child: Icon(Icons.check, color: Colors.green, size: 20)),
-      );
-    }
-    return const SizedBox(
+
+    return Container(
       width: 40,
-      height: 32,
-      child: Center(child: Icon(Icons.close, color: Colors.red, size: 20)),
+      height: 40,
+      decoration: BoxDecoration(
+        color: isPresent ? Colors.green[50] : Colors.red[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isPresent ? Colors.green[300]! : Colors.red[300]!,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          isPresent ? Icons.check_circle : Icons.cancel,
+          color: isPresent ? Colors.green[600] : Colors.red[600],
+          size: 20,
+        ),
+      ),
     );
   }
 
