@@ -114,6 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('first_name', data['first_name'] ?? '');
       await prefs.setString('last_name', data['last_name'] ?? '');
       await prefs.setString('username', data['username'] ?? '');
+      await prefs.setString('user_id', data['id']?.toString() ?? '');
       await prefs.setBool('is_logged_in', true); // <-- Set after login
 
       // Navigate to appropriate dashboard based on role
@@ -134,6 +135,9 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
         case 'lecturer':
           context.go(routes.AppRoutes.lecturerDashboard, extra: args);
+          break;
+        case 'security':
+          context.go(routes.AppRoutes.securityDashboard, extra: args);
           break;
         default:
           setState(() {

@@ -251,6 +251,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Campus Status',
                             user.isOnCampus ? 'On Campus' : 'Off Campus',
                           ),
+                          if (user.lastActivity != null) ...[
+                            const Divider(),
+                            profileRow(
+                              Icons.access_time,
+                              'Last Activity',
+                              _formatLastActivity(user.lastActivity!),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -351,6 +359,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
       ),
     );
+  }
+
+  String _formatLastActivity(DateTime lastActivity) {
+    final now = DateTime.now();
+    final difference = now.difference(lastActivity);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return 'over a week ago';
+    }
   }
 }
 

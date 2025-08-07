@@ -1010,6 +1010,7 @@ class AppProvider with ChangeNotifier {
 
   // Get current user details - change to public method
   User? getCurrentUser() {
+    debugPrint('getCurrentUser called: _role=$_role, _userId=$_userId');
     if (_role == AppConstants.studentRole) {
       return _allStudents.firstWhere(
         (s) => s.id == _userId,
@@ -1043,6 +1044,21 @@ class AppProvider with ChangeNotifier {
         lastName: _lecturerLastName,
         email: _lecturerEmail,
         profilePictureUrl: _lecturerProfilePictureUrl,
+      );
+    } else if (_role == AppConstants.securityRole) {
+      // Handle security users - use admin fields that are populated during login
+      debugPrint(
+        'Creating security user: name=$_adminName, username=$_adminUsername, id=$_userId',
+      );
+      return User(
+        id: _userId ?? 'security_user',
+        name: _adminName ?? 'Security Officer',
+        role: AppConstants.securityRole,
+        username: _adminUsername,
+        firstName: _adminFirstName,
+        lastName: _adminLastName,
+        email: _adminEmail,
+        profilePictureUrl: _adminProfilePictureUrl,
       );
     }
     return null;
@@ -1342,10 +1358,12 @@ class AppProvider with ChangeNotifier {
   String? _lecturerProfilePictureUrl;
 
   Future<void> loadUserData() async {
+    debugPrint('[loadUserData] Starting to load user data...');
     _setLoading(true, 'Loading user data...');
     try {
       final prefs = await SharedPreferences.getInstance();
       final role = prefs.getString('role');
+      debugPrint('[loadUserData] Found role in SharedPreferences: $role');
       final userId =
           prefs.getString('university_id') ?? prefs.getString('user_id');
       final username = prefs.getString('username');
@@ -1354,7 +1372,15 @@ class AppProvider with ChangeNotifier {
       final email = prefs.getString('email');
       final profilePictureUrl = prefs.getString('profile_picture');
 
+      debugPrint('[loadUserData] SharedPreferences values:');
+      debugPrint('  role: $role');
+      debugPrint('  userId: $userId');
+      debugPrint('  username: $username');
+      debugPrint('  firstName: $firstName');
+      debugPrint('  lastName: $lastName');
+
       if (role == AppConstants.adminRole) {
+        debugPrint('[loadUserData] Loading admin user data');
         _role = AppConstants.adminRole;
         _userId = userId;
         _adminUsername = username;
@@ -1384,6 +1410,7 @@ class AppProvider with ChangeNotifier {
           debugPrint('Failed to fetch admin profile from backend: $e');
         }
       } else if (role == AppConstants.lecturerRole) {
+        debugPrint('[loadUserData] Loading lecturer user data');
         _role = AppConstants.lecturerRole;
         _userId = userId;
         _lecturerUsername = username;
@@ -1412,7 +1439,90 @@ class AppProvider with ChangeNotifier {
         } catch (e) {
           debugPrint('Failed to fetch lecturer profile from backend: $e');
         }
+      } else if (role == AppConstants.securityRole) {
+        debugPrint(
+          '[loadUserData] Loading security user data from SharedPreferences',
+        );
+        debugPrint(
+          '[loadUserData] Security user data: role=$role, userId=$userId, username=$username',
+        );
+        _role = AppConstants.securityRole;
+        _userId = userId; // Set user ID from SharedPreferences
+        _adminUsername = username; // Reuse admin fields for security
+        _adminFirstName = firstName;
+        _adminLastName = lastName;
+        _adminEmail = email;
+        _adminProfilePictureUrl = profilePictureUrl;
+        _adminName =
+            (firstName?.isNotEmpty == true || lastName?.isNotEmpty == true)
+                ? '${firstName ?? ''} ${lastName ?? ''}'.trim()
+                : (username ?? 'Security Officer');
+        debugPrint(
+          '[loadUserData] Security user loaded: name=$_adminName, username=$_adminUsername, id=$_userId',
+        );
+        try {
+          final response = await coreServices.dio.get(
+            '${AppConstants.baseUrl}/my-profile/',
+          );
+          if (response.statusCode == 200 && response.data != null) {
+            final userJson = response.data['data'] ?? response.data;
+            final securityUser = User.fromJson(userJson);
+            // Use the actual user data from backend as source of truth
+            _userId = securityUser.id; // Use actual user ID
+            _adminName = securityUser.name;
+            _adminUsername = securityUser.username;
+            _adminFirstName = securityUser.firstName;
+            _adminLastName = securityUser.lastName;
+            _adminEmail = securityUser.email;
+            _adminProfilePictureUrl = securityUser.profilePictureUrl;
+            debugPrint(
+              '[loadUserData] Updated security user from backend: name=$_adminName, username=$_adminUsername, id=$_userId',
+            );
+          }
+        } catch (e) {
+          // Fallback to username from SharedPreferences if backend call fails
+          _userId = username ?? 'security_user';
+          debugPrint('Failed to fetch security profile from backend: $e');
+          debugPrint('[loadUserData] Using fallback security ID: $_userId');
+        }
+      } else if (role == AppConstants.securityRole) {
+        debugPrint('Setting up security user with role: $role');
+        debugPrint('Security setup data: userId=$userId, username=$username');
+        _role = AppConstants.securityRole;
+        _userId = username; // Security users use username as their ID
+        _adminUsername = username; // Reuse admin fields for security
+        _adminFirstName = firstName;
+        _adminLastName = lastName;
+        _adminEmail = email;
+        _adminProfilePictureUrl = profilePictureUrl;
+        _adminName =
+            (firstName?.isNotEmpty == true || lastName?.isNotEmpty == true)
+                ? '${firstName ?? ''} ${lastName ?? ''}'.trim()
+                : (username ?? 'Security Officer');
+        debugPrint(
+          'Security user set up: name=$_adminName, username=$_adminUsername, role=$_role',
+        );
+        try {
+          final response = await coreServices.dio.get(
+            '${AppConstants.baseUrl}/my-profile/',
+          );
+          if (response.statusCode == 200 && response.data != null) {
+            final userJson = response.data['data'] ?? response.data;
+            final securityUser = User.fromJson(userJson);
+            _adminName = securityUser.name;
+            _adminUsername = securityUser.username;
+            _adminFirstName = securityUser.firstName;
+            _adminLastName = securityUser.lastName;
+            _adminEmail = securityUser.email;
+            _adminProfilePictureUrl = securityUser.profilePictureUrl;
+          }
+        } catch (e) {
+          debugPrint('Failed to fetch security profile from backend: $e');
+        }
       } else {
+        debugPrint(
+          '[loadUserData] Defaulting to student role. Role from SharedPreferences: $role',
+        );
         _role = AppConstants.studentRole;
         _userId = userId ?? '12345';
         _currentProgram = 'Computer Science';

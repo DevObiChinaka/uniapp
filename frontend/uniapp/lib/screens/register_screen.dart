@@ -26,7 +26,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final List<String> campusTags = ['on-campus', 'off-campus'];
   bool isLoading = false;
   String _selectedRole = 'student';
-  final List<String> _roles = ['student', 'lecturer', 'security', 'admin'];
+  final List<String> _roles = [
+    'student',
+    'lecturer',
+  ]; // Only allow student/lecturer registration from frontend
   bool _obscurePassword = true;
 
   // Program/level state
@@ -222,6 +225,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           // Role Selection
                           _buildSectionTitle('Select Role'),
+                          Text(
+                            'Note: Admin and Security accounts are created by system administrators',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
                           SizedBox(height: 8),
                           _buildDropdownField(
                             value: _selectedRole,

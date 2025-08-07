@@ -455,6 +455,113 @@ class CoreServices {
     }
   }
 
+  Future<ExitResult> processStudentExit({
+    required String studentId,
+    required String action,
+    String? leaveId,
+    String? purpose,
+    String? exitDate,
+    String? returnDate,
+    String? qrCodeData,
+  }) async {
+    try {
+      debugPrint('processStudentExit: studentId=$studentId, action=$action');
+
+      final response = await _dio.post(
+        '${AppConstants.baseUrl}/security/student/process/',
+        data: {
+          'student_id': studentId,
+          'action': action,
+          'leave_id': leaveId,
+          'purpose': purpose,
+          'exit_date': exitDate,
+          'return_date': returnDate,
+          'qr_code_data': qrCodeData,
+        },
+      );
+
+      debugPrint('processStudentExit response: ${response.statusCode}');
+      debugPrint('processStudentExit data: ${response.data}');
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+
+        // Check if response has expected structure
+        if (data == null) {
+          debugPrint('processStudentExit: Response data is null');
+          return ExitResult(
+            allowed: false,
+            message: 'Invalid response from server',
+          );
+        }
+
+        // Handle both old detailed format and new simple format
+        if (data['student'] != null) {
+          // Detailed response format
+          final student = data['student'];
+          final studentName = student['name']?.toString() ?? 'Unknown';
+          final universityId = student['university_id']?.toString() ?? '';
+          final campusStatus = student['campus_status']?.toString() ?? '';
+          final processedBy = data['processed_by']?.toString() ?? '';
+          final timestamp = data['timestamp']?.toString() ?? '';
+
+          return ExitResult(
+            allowed: true,
+            message:
+                'Student $studentName ($universityId) has been processed for $action.\n'
+                'Campus Status: $campusStatus\n'
+                'Processed by: $processedBy\n'
+                'Time: $timestamp',
+            studentName: studentName,
+          );
+        } else {
+          // Simple response format - just use the message
+          final message =
+              data['message']?.toString() ?? 'Student processed successfully';
+
+          return ExitResult(
+            allowed: true,
+            message: message,
+            studentName:
+                'Student', // Generic name since backend doesn't provide it
+          );
+        }
+      } else {
+        debugPrint(
+          'processStudentExit: Non-200 status code: ${response.statusCode}',
+        );
+        return ExitResult(
+          allowed: false,
+          message:
+              'Failed to process student $action (Status: ${response.statusCode})',
+        );
+      }
+    } on DioException catch (e) {
+      debugPrint('processStudentExit DioException: ${e.toString()}');
+      debugPrint(
+        'processStudentExit error response: ${e.response?.statusCode} - ${e.response?.data}',
+      );
+
+      String errorMessage = 'Error processing student $action';
+
+      if (e.response?.data != null &&
+          e.response!.data is Map<String, dynamic>) {
+        final errorData = e.response!.data as Map<String, dynamic>;
+        if (errorData['error'] != null) {
+          errorMessage = errorData['error'].toString();
+        }
+      }
+
+      return ExitResult(allowed: false, message: errorMessage);
+    } catch (e) {
+      debugPrint('processStudentExit general exception: ${e.toString()}');
+      return ExitResult(
+        allowed: false,
+        message: 'Unexpected error processing student $action',
+      );
+    }
+  }
+
   Future<List<AppNotification>> getNotifications(String userId) async {
     try {
       final response = await _dio.get(
@@ -976,6 +1083,186 @@ class CoreServices {
     } catch (e) {
       debugPrint('Logout error: $e');
       return false;
+    }
+  }
+
+  // ===============================
+  // SECURITY DASHBOARD METHODS
+  // ===============================
+
+  /// Generate security QR code for student campus sign-in
+  Future<Map<String, dynamic>> generateSecurityQr() async {
+    try {
+      final response = await _dio.post('/security/qr/generate/');
+
+      debugPrint('Security QR generation response: ${response.statusCode}');
+      return {
+        'success': true,
+        'qr_data': response.data['qr_data'],
+        'generated_at': response.data['generated_at'],
+        'valid_until': response.data['valid_until'],
+        'generated_by': response.data['generated_by'],
+      };
+    } on DioException catch (e) {
+      debugPrint('Security QR generation error: $e');
+      return {
+        'success': false,
+        'message': _getErrorMessage(e, 'Security QR generation'),
+      };
+    }
+  }
+
+  /// Process student return to campus via security QR scan
+  Future<ExitResult> processStudentReturn(
+    String securityQrData,
+    String studentId,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/security/student/process/',
+        data: {'student_id': studentId, 'action': 'return'},
+      );
+
+      return ExitResult(
+        allowed: response.data['status'] == 'success',
+        message: response.data['message'] ?? 'Student processed successfully',
+        studentName: response.data['student_name'],
+        studentPhotoUrl: response.data['student_photo'],
+      );
+    } on DioException catch (e) {
+      return ExitResult(
+        allowed: false,
+        message: _getErrorMessage(e, 'Student return processing'),
+      );
+    }
+  }
+
+  /// Update student campus status (used by security)
+  Future<bool> updateStudentCampusStatus(
+    String studentId,
+    bool isOnCampus,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/security/campus/update/',
+        data: {'student_id': studentId, 'is_on_campus': isOnCampus},
+      );
+
+      debugPrint('Campus status update response: ${response.statusCode}');
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      debugPrint('Campus status update error: $e');
+      return false;
+    }
+  }
+
+  /// Get security dashboard statistics
+  Future<Map<String, dynamic>> getSecurityStats() async {
+    try {
+      final response = await _dio.get('/security/stats/');
+      return response.data;
+    } on DioException catch (e) {
+      debugPrint('Error getting security stats: $e');
+      return {'students_on_campus': 0, 'today_exits': 0, 'today_returns': 0};
+    }
+  }
+
+  /// Get today's exit logs
+  Future<List<Map<String, dynamic>>> getTodayExitLogs() async {
+    try {
+      final response = await _dio.get('/security/exit-logs/today/');
+      return List<Map<String, dynamic>>.from(response.data);
+    } on DioException catch (e) {
+      debugPrint('Error getting today exit logs: $e');
+      return [];
+    }
+  }
+
+  /// Get security logs (exits, returns, system events)
+  Future<List<Map<String, dynamic>>> getSecurityLogs({
+    String? date,
+    String? type,
+  }) async {
+    try {
+      Map<String, dynamic> queryParams = {};
+      if (date != null) queryParams['date'] = date;
+      if (type != null) queryParams['type'] = type;
+
+      final response = await _dio.get(
+        '/security/logs/',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      debugPrint('Security logs response: ${response.statusCode}');
+      debugPrint('Security logs data: ${response.data}');
+
+      return List<Map<String, dynamic>>.from(response.data);
+    } on DioException catch (e) {
+      debugPrint('Error getting security logs: $e');
+      return [];
+    }
+  }
+
+  /// Get students on campus count
+  Future<int> getStudentsOnCampusCount([User? currentUser]) async {
+    try {
+      debugPrint(
+        'getStudentsOnCampusCount called with user: ${currentUser?.name}, role: ${currentUser?.role}',
+      );
+      // Use security endpoint for security users, admin endpoint for admin users
+      final students = await getStudentsForRole(currentUser);
+      debugPrint('getStudentsOnCampusCount got ${students.length} students');
+
+      // Debug each student's campus status
+      for (final student in students) {
+        debugPrint(
+          'Student ${student.universityId}: isOnCampus=${student.isOnCampus}',
+        );
+      }
+
+      final onCampusCount =
+          students.where((student) => student.isOnCampus == true).length;
+      debugPrint('getStudentsOnCampusCount: $onCampusCount students on campus');
+      return onCampusCount;
+    } catch (e) {
+      debugPrint('Error getting students on campus count: $e');
+      return 0;
+    }
+  }
+
+  /// Get students based on current user role
+  Future<List<User>> getStudentsForRole([User? currentUser]) async {
+    try {
+      debugPrint(
+        'getStudentsForRole called with user: ${currentUser?.name}, role: ${currentUser?.role}',
+      );
+
+      // Check if current user is security
+      if (currentUser?.role == 'security') {
+        debugPrint('Using security endpoint for security user');
+        final response = await _dio.get('/security/students/');
+        if (response.statusCode == 200 && response.data['data'] != null) {
+          final List<dynamic> data = response.data['data'];
+          return data.map((json) => User.fromJson(json)).toList();
+        }
+      } else {
+        debugPrint(
+          'User role is not security: ${currentUser?.role}, using admin endpoint',
+        );
+        // For non-security users, check if they have admin role before calling admin endpoint
+        if (currentUser?.role == 'admin') {
+          return await getAllStudents();
+        } else {
+          debugPrint(
+            'User is neither security nor admin, returning empty list',
+          );
+          return [];
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting students for role: $e');
+      return [];
     }
   }
 }

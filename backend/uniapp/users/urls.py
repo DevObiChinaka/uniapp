@@ -1,5 +1,12 @@
 from django.urls import path
-from .views import RegisterUserView, LoginView, profile_view, verify_token, biometric_login, verify_password, change_password, user_info, LecturerCoursesWithSessionsAPIView, LecturerCourseStudentsAPIView, LecturerSessionAttendanceAPIView
+from .views import (
+    RegisterUserView, LoginView, profile_view, verify_token, biometric_login, 
+    verify_password, change_password, user_info, LecturerCoursesWithSessionsAPIView, 
+    LecturerCourseStudentsAPIView, LecturerSessionAttendanceAPIView,
+    SecurityQRGenerateAPIView, SecurityStudentProcessAPIView, SecurityCampusStatusUpdateAPIView,
+    SecurityTodayExitLogsAPIView, SecurityStudentsAPIView, AdminUserCreateAPIView,
+    SecurityLogsAPIView
+)
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -49,6 +56,17 @@ urlpatterns = [
     path('lecturer/courses-with-sessions/', LecturerCoursesWithSessionsAPIView.as_view(), name='lecturer-courses-with-sessions'),
     path('fcm/', views.FCMViewSet.as_view({'post': 'register'}), name='fcm'),
     path('ble-status/', views.BLEStatusAPIView.as_view(), name='ble-status'),  # New BLE status endpoint
+    
+    # Security endpoints
+    path('security/qr/generate/', views.SecurityQRGenerateAPIView.as_view(), name='security-qr-generate'),
+    path('security/student/process/', views.SecurityStudentProcessAPIView.as_view(), name='security-student-process'),
+    path('security/campus/update/', views.SecurityCampusStatusUpdateAPIView.as_view(), name='security-campus-update'),
+    path('security/logs/', views.SecurityLogsAPIView.as_view(), name='security-logs'),
+    path('security/exit-logs/today/', views.SecurityTodayExitLogsAPIView.as_view(), name='security-today-exit-logs'),
+    path('security/students/', views.SecurityStudentsAPIView.as_view(), name='security-students'),
+    
+    # Admin endpoints
+    path('admin/users/create/', views.AdminUserCreateAPIView.as_view(), name='admin-user-create'),
     
     # Session management
     path('sessions/<int:pk>/activate/', views.SessionViewSet.as_view({'post': 'activate'}), name='session-activate'),

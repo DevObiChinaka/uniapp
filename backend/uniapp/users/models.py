@@ -98,6 +98,7 @@ class User(AbstractUser):
         ("500", "500L"),
     ], blank=True, null=True, help_text="Student's academic level (e.g., 100, 200, etc.)")
     fcm_token = models.CharField(max_length=255, blank=True, null=True)
+    last_activity = models.DateTimeField(null=True, blank=True, help_text="Last time the user had any activity (scan, attendance, etc.)")
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
 
     objects = CustomUserManager()
@@ -121,6 +122,11 @@ class User(AbstractUser):
             self.university_id = None
         else:
             raise ValidationError("Role must be student, admin, lecturer, or security.")
+
+    def update_last_activity(self):
+        """Update the last_activity timestamp to now"""
+        self.last_activity = timezone.now()
+        self.save(update_fields=['last_activity'])
 
 
 # --- Geofence model for session-based geofencing ---
@@ -191,6 +197,7 @@ class ExitLog(models.Model):
     allowed = models.BooleanField(default=False)
     reason = models.TextField()
     qr_data = models.TextField()
+    qr_code_hash = models.CharField(max_length=64, blank=True, null=True, db_index=True)  # For duplicate detection
     face_verified = models.BooleanField(default=False)
 
 class SystemLog(models.Model):

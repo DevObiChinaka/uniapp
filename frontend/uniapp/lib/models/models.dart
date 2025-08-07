@@ -70,6 +70,7 @@ class User {
   final String? lastName;
   final String? email;
   final String? level;
+  final DateTime? lastActivity;
 
   const User({
     required this.id,
@@ -86,6 +87,7 @@ class User {
     this.lastName,
     this.email,
     this.level,
+    this.lastActivity,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -139,6 +141,10 @@ class User {
       lastName: json['last_name'] as String?,
       email: json['email'] as String?,
       level: json['level'] as String?,
+      lastActivity:
+          json['last_activity'] != null
+              ? DateTime.tryParse(json['last_activity'])
+              : null,
     );
   }
 
@@ -158,6 +164,7 @@ class User {
       'last_name': lastName,
       'email': email,
       'level': level,
+      'last_activity': lastActivity?.toIso8601String(),
     };
   }
 
@@ -176,6 +183,7 @@ class User {
     String? lastName,
     String? email,
     String? level,
+    DateTime? lastActivity,
   }) {
     return User(
       id: id ?? this.id,
@@ -192,6 +200,7 @@ class User {
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
       level: level ?? this.level,
+      lastActivity: lastActivity ?? this.lastActivity,
     );
   }
 }

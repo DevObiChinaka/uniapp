@@ -30,6 +30,9 @@ class AuthService {
       await prefs.setString('first_name', user['first_name']);
       await prefs.setString('last_name', user['last_name']);
 
+      // Store user ID for all roles
+      await prefs.setString('user_id', user['id']?.toString() ?? '');
+
       if (role == 'student') {
         await prefs.setString('university_id', user['university_id'] ?? '');
       } else {
@@ -45,6 +48,7 @@ class AuthService {
       return {
         'success': true,
         'data': {
+          'id': user['id'],
           'first_name': user['first_name'],
           'last_name': user['last_name'],
           'university_id': user['university_id'] ?? '',

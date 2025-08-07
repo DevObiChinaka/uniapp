@@ -31,6 +31,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     campus_tag = serializers.ChoiceField(choices=[('on-campus', 'On Campus'), ('off-campus', 'Off Campus')], required=False, allow_null=True)
     program = serializers.PrimaryKeyRelatedField(queryset=Program.objects.all(), required=False, allow_null=True)
     level = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
+    def validate_role(self, value):
+        """Restrict frontend registration to only student and lecturer roles"""
+        if value not in ['student', 'lecturer']:
+            raise serializers.ValidationError('Only student and lecturer roles can be registered from the frontend. Admin and security users must be created by administrators.')
+        return value
+    
     def validate(self, attrs):
         role = attrs.get('role')
         if role == 'student':
@@ -81,18 +88,48 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         if role == 'student':
             user_data['university_id'] = user.university_id
-        elif role == 'admin':
+        elif role in ['admin', 'security', 'lecturer']:
             user_data['username'] = user.username
-            user_data['is_superadmin'] = getattr(user, 'is_superadmin', False)
+            if role == 'admin':
+                user_data['is_superadmin'] = getattr(user, 'is_superadmin', False)
 
         data.update(user_data)
         return data
 
 
+class AdminUserCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating admin and security users via admin endpoint.
+    Only for backend admin use - not exposed to frontend registration.
+    """
+    password = serializers.CharField(write_only=True)
+    email = serializers.EmailField(required=True)
+    
+    def validate_role(self, value):
+        """Only allow admin and security roles for this serializer"""
+        if value not in ['admin', 'security']:
+            raise serializers.ValidationError('This endpoint only supports admin and security roles.')
+        return value
+
+    class Meta:
+        model = User
+        fields = ['username', 'first_name', 'last_name', 'email', 'password', 'role']
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        validated_data['university_id'] = ''  # Empty for admin/security users
+        validated_data['campus_tag'] = None
+        validated_data['program'] = None
+        validated_data['level'] = None
+        
+        user = User.objects.create_user(password=password, **validated_data)
+        return user
+
+
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField()
     password = serializers.CharField(write_only=True)
-    role = serializers.ChoiceField(choices=['student', 'admin'])
+    role = serializers.ChoiceField(choices=['student', 'admin', 'lecturer', 'security'])
 
 
 
@@ -119,6 +156,7 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'profile_picture_url',
             'level',             # Add level field
+            'last_activity',     # Add last activity field
         ]
     
     def get_id(self, obj):

@@ -6,7 +6,7 @@ import '../screens/student/dashboard_screen.dart' as student;
 import '../screens/student/attendance_screen.dart' as student;
 import '../screens/student/profile_screen.dart' as student;
 import '../screens/lecturer/lecturer_home.dart';
-import '../screens/security_dashboard.dart';
+import '../screens/security/security_dashboard.dart';
 import '../screens/admin/admin_home.dart';
 import '../screens/emergency_exit_screen.dart';
 import '../screens/splash_screen.dart';
@@ -65,14 +65,7 @@ class AppRouter {
       ),
       GoRoute(
         path: routes.AppRoutes.securityDashboard,
-        builder: (context, state) {
-          final Map<String, dynamic> extra =
-              state.extra as Map<String, dynamic>? ?? {};
-          final token = extra['token'] as String? ?? '';
-          final role = extra['role'] as String? ?? '';
-
-          return SecurityDashboard(token: token, role: role);
-        },
+        builder: (context, state) => const SecurityDashboard(),
       ),
       GoRoute(
         path: routes.AppRoutes.adminDashboard,
