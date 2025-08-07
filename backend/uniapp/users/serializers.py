@@ -118,6 +118,7 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'profile_picture_url',
+            'level',             # Add level field
         ]
     
     def get_id(self, obj):
@@ -197,20 +198,28 @@ class SessionSerializer(serializers.ModelSerializer):
         return session
 
 class AttendanceSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+    session_id = serializers.IntegerField(source='session.id', read_only=True)
+    
     class Meta:
         model = Attendance
-        fields = ['id', 'user', 'session', 'timestamp', 'method', 'face_verified', 'period', 'ble_device_id', 'ble_rssi']
+        fields = ['id', 'user_id', 'session_id', 'timestamp', 'method', 'face_verified', 'period', 'ble_device_id', 'ble_rssi']
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
-    id = serializers.SerializerMethodField()
-    user_id = serializers.SerializerMethodField()
-    reviewer_id = serializers.SerializerMethodField()
-    student_name = serializers.SerializerMethodField()
-    student_university_id = serializers.SerializerMethodField()
+    id = serializers.SerializerMethodField(read_only=True)
+    user_id = serializers.SerializerMethodField(read_only=True)
+    reviewer_id = serializers.SerializerMethodField(read_only=True)
+    student_name = serializers.SerializerMethodField(read_only=True)
+    student_university_id = serializers.SerializerMethodField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    submitted_at = serializers.DateTimeField(read_only=True)
+    reviewed_at = serializers.DateTimeField(read_only=True)
+    review_comments = serializers.CharField(read_only=True)
     
     class Meta:
         model = LeaveRequest
         fields = ['id', 'user_id', 'start_date', 'end_date', 'reason', 'status', 'submitted_at', 'reviewed_at', 'reviewer_id', 'review_comments', 'student_name', 'student_university_id']
+        read_only_fields = ['id', 'user_id', 'status', 'submitted_at', 'reviewed_at', 'reviewer_id', 'review_comments', 'student_name', 'student_university_id']
     
     def get_id(self, obj):
         return str(obj.id)
@@ -228,6 +237,36 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     
     def get_student_university_id(self, obj):
         return obj.user.university_id if obj.user else "N/A"
+
+
+class LeaveRequestCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating leave requests - handles frontend data format"""
+    
+    # Use DateTimeField to handle ISO format, then convert to date
+    start_date = serializers.DateTimeField()
+    end_date = serializers.DateTimeField()
+    
+    class Meta:
+        model = LeaveRequest
+        fields = ['start_date', 'end_date', 'reason']
+        
+    def validate(self, attrs):
+        start_datetime = attrs.get('start_date')
+        end_datetime = attrs.get('end_date')
+        
+        if start_datetime and end_datetime:
+            # Convert datetime to date for comparison
+            start_date = start_datetime.date()
+            end_date = end_datetime.date()
+            
+            if end_date < start_date:
+                raise serializers.ValidationError("End date cannot be before start date")
+            
+            # Store the date parts in attrs for saving
+            attrs['start_date'] = start_date
+            attrs['end_date'] = end_date
+                
+        return attrs
 
 class SystemLogSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField()

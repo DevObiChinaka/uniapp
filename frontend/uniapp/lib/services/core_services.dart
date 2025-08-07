@@ -40,6 +40,12 @@ class CoreServices {
 
   /// Fetch a course by its ID
   Future<Course?> getCourse(String courseId) async {
+    // Validate courseId to prevent malformed URLs
+    if (courseId.isEmpty || courseId.trim().isEmpty) {
+      debugPrint('getCourse: Empty courseId provided, returning null');
+      return null;
+    }
+
     try {
       final response = await _dio.get(
         '${AppConstants.baseUrl}/courses/$courseId/',
@@ -751,6 +757,51 @@ class CoreServices {
           .toList();
     } on DioException catch (e) {
       _handleApiError(e, 'Get system logs');
+      return [];
+    }
+  }
+
+  Future<List<ExitLog>> getExitHistory([String? userId]) async {
+    try {
+      Map<String, dynamic>? queryParams;
+      if (userId != null) {
+        queryParams = {'user_id': userId};
+      }
+
+      final response = await _dio.get(
+        AppConstants.exitReportEndpoint,
+        queryParameters: queryParams,
+      );
+
+      debugPrint('Exit history response: ${response.statusCode}');
+      debugPrint('Exit history data: ${response.data}');
+
+      return (response.data as List)
+          .map((json) => ExitLog.fromJson(json))
+          .toList();
+    } on DioException catch (e) {
+      _handleApiError(e, 'Get exit history');
+      return [];
+    }
+  }
+
+  Future<List<AttendanceRecord>> getAttendanceHistory([String? userId]) async {
+    try {
+      Map<String, dynamic>? queryParams;
+      if (userId != null) {
+        queryParams = {'user_id': userId};
+      }
+
+      final response = await _dio.get(
+        AppConstants.attendanceReportEndpoint,
+        queryParameters: queryParams,
+      );
+
+      return (response.data as List)
+          .map((json) => AttendanceRecord.fromJson(json))
+          .toList();
+    } on DioException catch (e) {
+      _handleApiError(e, 'Get attendance history');
       return [];
     }
   }

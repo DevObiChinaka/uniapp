@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../utils/utils.dart';
 import 'dart:convert';
@@ -68,6 +69,7 @@ class User {
   final String? firstName;
   final String? lastName;
   final String? email;
+  final String? level;
 
   const User({
     required this.id,
@@ -85,7 +87,6 @@ class User {
     this.email,
     this.level,
   });
-  final String? level;
 
   factory User.fromJson(Map<String, dynamic> json) {
     prog.Program? mappedProgram;
@@ -617,6 +618,76 @@ class ExitResult {
       studentPhotoUrl: studentPhotoUrl ?? this.studentPhotoUrl,
     );
   }
+}
+
+@immutable
+class ExitLog {
+  final String id;
+  final String userId;
+  final DateTime timestamp;
+  final bool allowed;
+  final String reason;
+  final String qrData;
+  final bool faceVerified;
+  final String? studentName;
+  final String? studentUniversityId;
+
+  const ExitLog({
+    required this.id,
+    required this.userId,
+    required this.timestamp,
+    required this.allowed,
+    required this.reason,
+    required this.qrData,
+    required this.faceVerified,
+    this.studentName,
+    this.studentUniversityId,
+  });
+
+  factory ExitLog.fromJson(Map<String, dynamic> json) {
+    return ExitLog(
+      id: json['id'].toString(),
+      userId:
+          json['user'] is Map
+              ? json['user']['id'].toString()
+              : json['user'].toString(),
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      allowed: json['allowed'] as bool,
+      reason: json['reason'] as String? ?? '',
+      qrData: json['qr_data'] as String? ?? '',
+      faceVerified: json['face_verified'] as bool? ?? false,
+      studentName: json['user'] is Map ? json['user']['name'] as String? : null,
+      studentUniversityId:
+          json['user'] is Map ? json['user']['university_id'] as String? : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user': userId,
+      'timestamp': timestamp.toIso8601String(),
+      'allowed': allowed,
+      'reason': reason,
+      'qr_data': qrData,
+      'face_verified': faceVerified,
+    };
+  }
+
+  String get timeAgo {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inSeconds < 60) return 'Just now';
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    if (difference.inDays < 7) return '${difference.inDays}d ago';
+
+    return DateFormat('MMM d, y').format(timestamp);
+  }
+
+  String get statusText => allowed ? 'APPROVED' : 'DENIED';
+  Color get statusColor => allowed ? Colors.green : Colors.red;
 }
 
 @immutable

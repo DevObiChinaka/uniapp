@@ -28,9 +28,7 @@ class _SummaryCard extends StatelessWidget {
       child: Card(
         elevation: 4,
         shadowColor: color.withOpacity(0.2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -38,10 +36,7 @@ class _SummaryCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                color.withOpacity(0.1),
-                color.withOpacity(0.05),
-              ],
+              colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
             ),
           ),
           child: Column(
@@ -164,9 +159,9 @@ class _StudentDashboardContent extends StatelessWidget {
         final String studentName = studentUser?.name ?? 'Student';
         final String? profileImageUrl = studentUser?.profilePictureUrl;
 
-        final int attendanceCount = provider.attendanceRecords.length;
+        final int attendanceCount = provider.attendanceHistory.length;
         final int leaveCount = provider.leaveRequests.length;
-        final recentAttendance = provider.attendanceRecords.take(5).toList();
+        final recentAttendance = provider.attendanceHistory.take(5).toList();
 
         return SafeArea(
           child: RefreshIndicator(
@@ -187,7 +182,9 @@ class _StudentDashboardContent extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                                Theme.of(
+                                  context,
+                                ).colorScheme.primary.withOpacity(0.8),
                                 Theme.of(context).colorScheme.primary,
                               ],
                             ),
@@ -229,7 +226,9 @@ class _StudentDashboardContent extends StatelessWidget {
                                           ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
+                                              color: Colors.black.withOpacity(
+                                                0.1,
+                                              ),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2),
                                             ),
@@ -238,48 +237,67 @@ class _StudentDashboardContent extends StatelessWidget {
                                         child: CircleAvatar(
                                           radius: 36,
                                           backgroundColor: Colors.white,
-                                          backgroundImage: profileImageUrl != null
-                                              ? NetworkImage(profileImageUrl)
-                                              : null,
-                                          child: profileImageUrl == null
-                                              ? Icon(
-                                                  Icons.person,
-                                                  size: 40,
-                                                  color: Theme.of(context).colorScheme.primary,
-                                                )
-                                              : null,
+                                          backgroundImage:
+                                              profileImageUrl != null
+                                                  ? NetworkImage(
+                                                    profileImageUrl,
+                                                  )
+                                                  : null,
+                                          child:
+                                              profileImageUrl == null
+                                                  ? Icon(
+                                                    Icons.person,
+                                                    size: 40,
+                                                    color:
+                                                        Theme.of(
+                                                          context,
+                                                        ).colorScheme.primary,
+                                                  )
+                                                  : null,
                                         ),
                                       ),
                                       const SizedBox(width: 24),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               studentName,
-                                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                              ),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .headlineSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                  ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                             const SizedBox(height: 8),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 6,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 6,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.2),
-                                                borderRadius: BorderRadius.circular(20),
+                                                color: Colors.white.withOpacity(
+                                                  0.2,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
                                               ),
                                               child: Text(
                                                 studentUser?.universityId ?? '',
-                                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
                                               ),
                                             ),
                                           ],
@@ -330,7 +348,9 @@ class _StudentDashboardContent extends StatelessWidget {
                         const SizedBox(width: 12),
                         Text(
                           'Recent Attendance',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
                           ),
@@ -339,11 +359,11 @@ class _StudentDashboardContent extends StatelessWidget {
                     ),
                   ),
                   ...recentAttendance.map((record) {
-                    return FutureBuilder<Course?>(
-                      future: provider.coreServices.getCourse(
-                        provider.sessions.firstWhere(
-                          (s) => s.id == record.sessionId,
-                          orElse: () => Session(
+                    // Find the session for this attendance record
+                    final session = provider.sessions.firstWhere(
+                      (s) => s.id == record.sessionId,
+                      orElse:
+                          () => Session(
                             id: '',
                             lecturerUsername: '',
                             program: '',
@@ -352,11 +372,19 @@ class _StudentDashboardContent extends StatelessWidget {
                             courseId: '',
                             geofence: null,
                           ),
-                        ).courseId ?? '',
-                      ),
+                    );
+
+                    final courseId = session.courseId ?? '';
+
+                    return FutureBuilder<Course?>(
+                      future:
+                          courseId.isNotEmpty
+                              ? provider.coreServices.getCourse(courseId)
+                              : Future.value(null),
                       builder: (context, snapshot) {
                         String courseText;
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           courseText = 'Loading course...';
                         } else if (snapshot.hasError) {
                           courseText = 'Course lookup error';
@@ -365,7 +393,7 @@ class _StudentDashboardContent extends StatelessWidget {
                         } else {
                           courseText = snapshot.data!.code;
                         }
-                        
+
                         return Card(
                           elevation: 2,
                           margin: const EdgeInsets.symmetric(vertical: 8),
@@ -420,7 +448,9 @@ class _StudentDashboardContent extends StatelessWidget {
                                       Expanded(
                                         child: Text(
                                           courseText,
-                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium?.copyWith(
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -432,7 +462,9 @@ class _StudentDashboardContent extends StatelessWidget {
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.green.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                         child: Text(
                                           'Present',
@@ -456,7 +488,10 @@ class _StudentDashboardContent extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          record.timestamp.toLocal().toString().substring(0, 16),
+                                          record.timestamp
+                                              .toLocal()
+                                              .toString()
+                                              .substring(0, 16),
                                           style: TextStyle(
                                             color: Colors.grey[600],
                                           ),
@@ -487,9 +522,8 @@ class _StudentDashboardContent extends StatelessWidget {
                             const SizedBox(height: 16),
                             Text(
                               'No recent attendance records',
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Colors.grey[600],
-                              ),
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(color: Colors.grey[600]),
                             ),
                           ],
                         ),

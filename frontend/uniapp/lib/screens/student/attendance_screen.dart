@@ -6,6 +6,7 @@ import '../../models/course.dart';
 import 'package:geolocator/geolocator.dart';
 import 'qr_attendance_screen.dart';
 import 'face_verification_screen.dart';
+import 'attendance_history_screen.dart';
 
 // ...removed local Course class, using shared model instead...
 
@@ -247,9 +248,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.history),
-            tooltip: 'View Full History',
+            tooltip: 'View Attendance History',
             onPressed: () {
-              // TODO: Navigate to full history screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AttendanceHistoryScreen(),
+                ),
+              );
             },
           ),
         ],
@@ -454,7 +459,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                   SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      'No active session available for your program/level.',
+                                      provider.sessions.isNotEmpty
+                                          ? 'Sessions are available but none are currently active. Please wait for your lecturer to start the session.'
+                                          : 'No sessions found for your program/level.',
                                       style:
                                           Theme.of(
                                             context,

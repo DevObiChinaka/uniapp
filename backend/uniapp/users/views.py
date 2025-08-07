@@ -30,7 +30,7 @@ import json
 from .models import User, Session, Attendance, LeaveRequest, ExitLog, SystemLog, Course
 from .serializers import (
     UserSerializer, SessionSerializer, AttendanceSerializer,
-    LeaveRequestSerializer, ExitLogSerializer, SystemLogSerializer,
+    LeaveRequestSerializer, LeaveRequestCreateSerializer, ExitLogSerializer, SystemLogSerializer,
     UserRegistrationSerializer, FCMTokenSerializer, CourseSerializer, CourseWithSessionsSerializer,
     AttendanceRecordSummarySerializer
 )
@@ -112,7 +112,7 @@ class SessionViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         user = request.user
         queryset = self.get_queryset()
-        # For students, filter sessions by program and level, and only active sessions
+        # For students, filter sessions by program and level
         if user.role == 'student':
             user_program = getattr(user, 'program', None)
             user_level = getattr(user, 'level', None)
@@ -124,8 +124,7 @@ class SessionViewSet(viewsets.ModelViewSet):
             if user_program and user_level:
                 queryset = queryset.filter(
                     course__programs=user_program,
-                    course__level=user_level,
-                    is_active=True
+                    course__level=user_level
                 )
         else:
             # For staff/admin, filter by username if provided
@@ -414,18 +413,52 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     serializer_class = LeaveRequestSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return LeaveRequestCreateSerializer
+        return LeaveRequestSerializer
+
     def get_queryset(self):
         if self.request.user.role == 'student':
             return LeaveRequest.objects.filter(user=self.request.user)
         return super().get_queryset()
 
     def create(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        print(f"[DEBUG] Received leave request data: {request.data}")
         
-        async_task('users.tasks.notify_admin_new_leave', serializer.data['id'])
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # Filter out only the fields we need for creation
+        filtered_data = {
+            'start_date': request.data.get('start_date'),
+            'end_date': request.data.get('end_date'),
+            'reason': request.data.get('reason'),
+        }
+        print(f"[DEBUG] Filtered data for serializer: {filtered_data}")
+        
+        serializer = self.get_serializer(data=filtered_data)
+        if not serializer.is_valid():
+            print(f"[DEBUG] Serializer errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            print(f"[DEBUG] Current user: {request.user}, ID: {request.user.id}, Role: {request.user.role}")
+            leave_request = serializer.save(user=request.user)
+            print(f"[DEBUG] Successfully created leave request with ID: {leave_request.id}")
+            
+            # Return the created object with the read serializer
+            response_serializer = LeaveRequestSerializer(leave_request)
+            
+            # Try to send notification (optional - don't fail if tasks aren't working)
+            try:
+                async_task('users.tasks.notify_admin_new_leave', leave_request.id)
+            except Exception as task_error:
+                print(f"[DEBUG] Task notification failed: {task_error}")
+                
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            print(f"[DEBUG] Error saving leave request: {e}")
+            import traceback
+            print(f"[DEBUG] Full traceback: {traceback.format_exc()}")
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['patch'])
     def update_status(self, request, pk=None):
@@ -707,6 +740,7 @@ def profile_view(request):
             'university_id': user.university_id,
             'role': getattr(user, 'role', None),
             'program': program_data,
+            'level': getattr(user, 'level', None),
             'profile_picture_url': getattr(user, 'profile_picture_url', None),
             'is_on_campus': getattr(user, 'is_on_campus', None),
             'campus_tag': getattr(user, 'campus_tag', None),
@@ -750,6 +784,7 @@ def profile_view(request):
             'university_id': user.university_id,
             'role': getattr(user, 'role', None),
             'program': program_data,
+            'level': getattr(user, 'level', None),
             'profile_picture_url': getattr(user, 'profile_picture_url', None),
             'is_on_campus': getattr(user, 'is_on_campus', None),
             'campus_tag': getattr(user, 'campus_tag', None),

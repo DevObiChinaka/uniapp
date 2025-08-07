@@ -35,8 +35,10 @@ class AppConstants {
 
   static const String sessionEndpoint = '$baseUrl/sessions/';
   // Session management endpoints
-  static const String sessionUpdateDetailsEndpoint = '$baseUrl/sessions/{id}/update_details/';
-  static const String sessionActivateEndpoint = '$baseUrl/sessions/{id}/activate/';
+  static const String sessionUpdateDetailsEndpoint =
+      '$baseUrl/sessions/{id}/update_details/';
+  static const String sessionActivateEndpoint =
+      '$baseUrl/sessions/{id}/activate/';
   static const String leaveEndpoint = '$baseUrl/leave/';
   static const String exitEndpoint = '$baseUrl/exit/';
   static const String fcmEndpoint = '$baseUrl/fcm/';
@@ -78,6 +80,8 @@ class AppConstants {
   static const String adminStudentsEndpoint = '$baseUrl/admin/students';
   static const String adminLeaveEndpoint = '$baseUrl/admin/leave-requests';
   static const String adminLogsEndpoint = '$baseUrl/admin/system-logs';
+  static const String exitReportEndpoint = '$baseUrl/reports/exit/';
+  static const String attendanceReportEndpoint = '$baseUrl/reports/attendance/';
 
   // Face verification threshold
   static const double faceConfidenceThreshold = 0.7;

@@ -137,7 +137,8 @@ class AppProvider with ChangeNotifier {
       debugPrint('[AppProvider] Backend returned sessions:');
       for (var s in sessions) {
         debugPrint(
-          '  id: ${s.id}, program: ${s.program}, level: ${s.level}, isActive: ${s.isActive}, lecturer: ${s.lecturerUsername}',
+          '  id: ${s.id}, program: ${s.program}, level: ${s.level}, isActive: ${s.isActive}, '
+          'lecturer: ${s.lecturerUsername}, courseId: ${s.courseId}',
         );
       }
       debugPrint(
@@ -156,26 +157,43 @@ class AppProvider with ChangeNotifier {
           continue;
         }
         final courseProgramNames = course.programs.map((p) => p.name).toList();
-        final studentProgramName = (program as prog.Program).name;
+        final studentProgramName = program.name;
         final programMatch = courseProgramNames.contains(studentProgramName);
+        // If student level is null, match all courses; otherwise match exact level
         final levelMatch = (level == null || course.level == level);
+
+        debugPrint(
+          '  Session id=${s.id}: course=${course.code}, coursePrograms=${courseProgramNames}, '
+          'courseLevel=${course.level}, programMatch=${programMatch}, levelMatch=${levelMatch}',
+        );
+
         if (!programMatch || !levelMatch) {
           debugPrint(
             '  Skipping session id=${s.id}: programMatch=${programMatch}, levelMatch=${levelMatch}',
           );
           continue;
         }
+        debugPrint('  ✓ Including session id=${s.id} in filtered results');
         filtered.add(s);
       }
       debugPrint('[AppProvider] Filtered sessions count: ${filtered.length}');
       _sessions = filtered;
-      _activeSession = filtered.isNotEmpty ? filtered.first : null;
+
+      // For active session, find the first session that is actually active
+      final activeSessions = filtered.where((s) => s.isActive).toList();
+      _activeSession = activeSessions.isNotEmpty ? activeSessions.first : null;
+
       if (_activeSession != null) {
         debugPrint(
           '[AppProvider] Active session selected: id=${_activeSession!.id}',
         );
       } else {
         debugPrint('[AppProvider] No active session found after filtering.');
+        if (filtered.isNotEmpty) {
+          debugPrint(
+            '[AppProvider] Available sessions (but none active): ${filtered.length}',
+          );
+        }
       }
       notifyListeners();
     } catch (e) {
@@ -183,8 +201,8 @@ class AppProvider with ChangeNotifier {
     }
   }
 
-  /// Fetch attendance history for the current student
-  Future<void> fetchAttendanceHistory() async {
+  /// Fetch current session attendance records for real-time tracking
+  Future<void> fetchCurrentAttendanceRecords() async {
     try {
       final userId = getCurrentUser()?.universityId ?? _userId;
       if (userId == null) throw Exception('User ID missing');
@@ -192,7 +210,7 @@ class AppProvider with ChangeNotifier {
       _attendanceRecords = records;
       notifyListeners();
     } catch (e) {
-      debugPrint('Error fetching attendance history: $e');
+      debugPrint('Error fetching current attendance records: $e');
     }
   }
 
@@ -484,6 +502,8 @@ class AppProvider with ChangeNotifier {
   List<User> _allStudents = [];
   List<LeaveRequest> _allLeaveRequests = [];
   List<SystemLog> _systemLogs = [];
+  List<ExitLog> _exitHistory = [];
+  List<AttendanceRecord> _attendanceHistory = [];
 
   // Loading states
   bool _isLoading = false;
@@ -508,7 +528,7 @@ class AppProvider with ChangeNotifier {
       debugPrint('[AppProvider] Preloading all data after login...');
       await fetchProfile();
       await fetchActiveSession();
-      await fetchAttendanceHistory();
+      await fetchAttendanceHistory(); // This will fetch attendance history for the history screen
       await fetchPrograms();
       await fetchLeaveRequests();
 
@@ -555,6 +575,8 @@ class AppProvider with ChangeNotifier {
   List<User> get allStudents => _allStudents;
   List<LeaveRequest> get allLeaveRequests => _allLeaveRequests;
   List<SystemLog> get systemLogs => _systemLogs;
+  List<ExitLog> get exitHistory => _exitHistory;
+  List<AttendanceRecord> get attendanceHistory => _attendanceHistory;
   // BLE device getter removed
 
   // Offline attendance getters
@@ -1445,6 +1467,33 @@ class AppProvider with ChangeNotifier {
     }
   }
 
+  // Change password method
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      debugPrint('Changing password...');
+
+      final response = await coreServices.dio.post(
+        '/api/users/change-password/',
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        },
+      );
+
+      debugPrint('Change password response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        debugPrint('Password changed successfully');
+      }
+    } catch (e) {
+      debugPrint('Change password error: $e');
+      throw Exception('Failed to change password');
+    }
+  }
+
   // Logout method to clear user data and redirect
   Future<bool> logout() async {
     _setLoading(true, 'Logging out...');
@@ -1526,6 +1575,41 @@ class AppProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error fetching system logs: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> fetchExitHistory([String? userId]) async {
+    _setLoading(true, 'Fetching exit history...');
+    try {
+      final history = await coreServices.getExitHistory(userId);
+      _exitHistory = history;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching exit history: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> fetchAttendanceHistory([String? userId]) async {
+    _setLoading(true, 'Fetching attendance history...');
+    try {
+      debugPrint(
+        '[AppProvider] Fetching attendance history for userId: $userId',
+      );
+      final history = await coreServices.getAttendanceHistory(userId);
+      debugPrint('[AppProvider] Received ${history.length} attendance records');
+      for (var record in history) {
+        debugPrint(
+          '[AppProvider] Attendance: id=${record.id}, sessionId=${record.sessionId}, method=${record.method}',
+        );
+      }
+      _attendanceHistory = history;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching attendance history: $e');
     } finally {
       _setLoading(false);
     }
