@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import 'package:intl/intl.dart';
+import 'exit_qr_screen.dart';
 
 class LeaveRequestDetailsScreen extends StatelessWidget {
   final LeaveRequest leaveRequest;
@@ -330,23 +331,10 @@ class LeaveRequestDetailsScreen extends StatelessWidget {
   }
 
   void _generateExitQR(BuildContext context) {
-    // For now, show coming soon dialog
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Exit QR Code'),
-          content: const Text(
-            'QR code generation functionality will be implemented in the next phase.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ExitQRScreen(leaveRequest: leaveRequest),
+      ),
     );
   }
 

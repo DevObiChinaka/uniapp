@@ -742,7 +742,7 @@ def profile_view(request):
             'program': program_data,
             'level': getattr(user, 'level', None),
             'profile_picture_url': getattr(user, 'profile_picture_url', None),
-            'is_on_campus': getattr(user, 'is_on_campus', None),
+            'is_on_campus': user.campus_tag == 'on-campus' if user.campus_tag else False,
             'campus_tag': getattr(user, 'campus_tag', None),
         }, status=status.HTTP_200_OK)
 
@@ -786,7 +786,7 @@ def profile_view(request):
             'program': program_data,
             'level': getattr(user, 'level', None),
             'profile_picture_url': getattr(user, 'profile_picture_url', None),
-            'is_on_campus': getattr(user, 'is_on_campus', None),
+            'is_on_campus': user.campus_tag == 'on-campus' if user.campus_tag else False,
             'campus_tag': getattr(user, 'campus_tag', None),
             'message': 'Profile updated successfully.'
         }, status=status.HTTP_200_OK)

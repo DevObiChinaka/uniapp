@@ -29,9 +29,6 @@ class AttendanceScreen extends StatefulWidget {
 }
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
-  // Cache for course codes to avoid duplicate API calls
-  final Map<String, String> _courseCodeCache = {};
-
   bool _isInProximity = false;
 
   Future<void> _checkProximity() async {
@@ -158,10 +155,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       await provider.fetchAttendanceHistory();
 
       // Re-check marked status after refresh
-      bool marked = provider.attendanceRecords.any(
+      bool marked = provider.attendanceHistory.any(
         (record) =>
             record.sessionId == activeSession.id &&
             record.period == activeSession.currentPeriod,
+      );
+      debugPrint(
+        '[AttendanceScreen] After marking attendance - Is marked: $marked',
       );
       if (mounted) {
         setState(() {
@@ -220,11 +220,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final activeSession = provider.activeSession;
       bool marked = false;
       if (activeSession != null) {
-        marked = provider.attendanceRecords.any(
+        debugPrint(
+          '[AttendanceScreen] Checking if attendance is marked for session: ${activeSession.id}, period: ${activeSession.currentPeriod}',
+        );
+        debugPrint(
+          '[AttendanceScreen] Available attendance records: ${provider.attendanceHistory.length}',
+        );
+        for (var record in provider.attendanceHistory) {
+          debugPrint(
+            '[AttendanceScreen] Record: sessionId=${record.sessionId}, period=${record.period}',
+          );
+        }
+        marked = provider.attendanceHistory.any(
           (record) =>
               record.sessionId == activeSession.id &&
               record.period == activeSession.currentPeriod,
         );
+        debugPrint('[AttendanceScreen] Is marked: $marked');
       }
       if (mounted) {
         setState(() {
@@ -315,8 +327,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             return Consumer<AppProvider>(
               builder: (context, provider, _) {
                 final activeSession = provider.activeSession;
-                final recentAttendance =
-                    provider.attendanceRecords.take(5).toList();
 
                 // Use _isMarked for button and status
                 return Padding(
@@ -472,54 +482,54 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                               ),
                             ),
                           ),
-                        Text(
-                          'Recent Attendance',
-                          style: Theme.of(context).textTheme.titleMedium,
+
+                        // Add a spacer and quick action buttons
+                        const SizedBox(height: 24),
+
+                        // Quick actions card
+                        Card(
+                          elevation: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Quick Actions',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder:
+                                                  (context) =>
+                                                      const AttendanceHistoryScreen(),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.history),
+                                        label: const Text('View History'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        SizedBox(height: 8),
-                        if (recentAttendance.isNotEmpty)
-                          ...recentAttendance.map((record) {
-                            debugPrint(
-                              '[AttendanceScreen] Attendance record: sessionId=${record.sessionId}, timestamp=${record.timestamp}',
-                            );
-                            return FutureBuilder<Course?>(
-                              future: _getCourseForAttendance(
-                                context,
-                                record.sessionId,
-                              ),
-                              builder: (context, snapshot) {
-                                String courseText;
-                                if (snapshot.connectionState ==
-                                    ConnectionState.waiting) {
-                                  courseText = 'Loading course...';
-                                } else if (snapshot.hasError) {
-                                  courseText = 'Course lookup error';
-                                } else if (snapshot.data == null) {
-                                  courseText = 'Session/Course not found';
-                                } else {
-                                  courseText = 'Course: ${snapshot.data!.code}';
-                                }
-                                return Card(
-                                  child: ListTile(
-                                    leading: Icon(
-                                      Icons.check_circle,
-                                      color: Colors.green,
-                                    ),
-                                    title: Text(courseText),
-                                    subtitle: Text(
-                                      'Time: ${record.timestamp.toLocal().toString().substring(0, 19)}',
-                                    ),
-                                    trailing: Text(
-                                      'Marked',
-                                      style: TextStyle(color: Colors.green),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          }).toList()
-                        else
-                          Text('No recent attendance records.'),
                       ],
                     ),
                   ),
@@ -530,46 +540,5 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ),
       ),
     );
-  }
-
-  // Helper to fetch course for attendance record and cache result
-  Future<Course?> _getCourseForAttendance(
-    BuildContext context,
-    String sessionId,
-  ) async {
-    final provider = Provider.of<AppProvider>(context, listen: false);
-    final sessionList =
-        provider.sessions.where((s) => s.id == sessionId).toList();
-    final session = sessionList.isNotEmpty ? sessionList.first : null;
-    if (session == null) {
-      debugPrint(
-        '[AttendanceScreen] Session not found for attendance record: sessionId=$sessionId',
-      );
-      return null;
-    }
-    if (session.courseId == null || session.courseId!.isEmpty) {
-      debugPrint(
-        '[AttendanceScreen] CourseId missing for session: sessionId=$sessionId',
-      );
-      return null;
-    }
-    final courseId = session.courseId!;
-    // Check cache
-    if (_courseCodeCache.containsKey(courseId)) {
-      return Course(
-        id: courseId,
-        code: _courseCodeCache[courseId]!,
-        name: '',
-        programs: [],
-        level: '',
-      );
-    }
-    final course = await _fetchCourseDetails(context, courseId);
-    if (course == null) {
-      debugPrint('[AttendanceScreen] Course not found for courseId=$courseId');
-    } else {
-      _courseCodeCache[courseId] = course.code;
-    }
-    return course;
   }
 }

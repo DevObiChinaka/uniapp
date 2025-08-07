@@ -34,15 +34,31 @@ class _ExitScreenState extends State<ExitScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Exit & Leave Requests'),
+        title: const Text(
+          'Campus Exit',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         elevation: 0,
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            onPressed: () => _navigateToExitHistory(context),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.history, size: 20, color: Colors.white),
+              ),
+              onPressed: () => _navigateToExitHistory(context),
+              tooltip: 'Exit History',
+            ),
           ),
         ],
       ),
@@ -52,35 +68,52 @@ class _ExitScreenState extends State<ExitScreen> {
           final isLoading = provider.isLoading;
 
           if (isLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context).primaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading your exit information...',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                  ),
+                ],
+              ),
+            );
           }
 
           return RefreshIndicator(
             onRefresh: _refreshData,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Campus Status Card
                   _buildCampusStatusCard(context, user),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 28),
 
                   // Quick Stats
                   _buildQuickStats(context, provider),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 36),
 
                   // Quick Actions
                   _buildQuickActions(context, provider),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 36),
 
                   // Recent Leave Requests
                   _buildRecentLeaveRequests(context, provider),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 36),
 
                   // Active Leave/Exit QR
                   _buildActiveExitSection(context, provider),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -93,72 +126,77 @@ class _ExitScreenState extends State<ExitScreen> {
   Widget _buildCampusStatusCard(BuildContext context, User? user) {
     final isOnCampus = user?.isOnCampus ?? false;
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors:
-                isOnCampus
-                    ? [
-                      Colors.green.withOpacity(0.1),
-                      Colors.green.withOpacity(0.05),
-                    ]
-                    : [
-                      Colors.orange.withOpacity(0.1),
-                      Colors.orange.withOpacity(0.05),
-                    ],
-          ),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors:
+              isOnCampus
+                  ? [const Color(0xFF4CAF50), const Color(0xFF66BB6A)]
+                  : [
+                    const Color.fromARGB(255, 57, 129, 236),
+                    const Color(0xFFFFB74D),
+                  ],
         ),
+        boxShadow: [
+          BoxShadow(
+            color: (isOnCampus ? Colors.green : Colors.orange).withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(24),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color:
-                    isOnCampus
-                        ? Colors.green.withOpacity(0.1)
-                        : Colors.orange.withOpacity(0.1),
+                color: Colors.white.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 isOnCampus ? Icons.location_on : Icons.location_off,
-                color: isOnCampus ? Colors.green : Colors.orange,
-                size: 28,
+                color: Colors.white,
+                size: 32,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 20),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Campus Status',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     isOnCampus ? 'Currently On Campus' : 'Currently Off Campus',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: isOnCampus ? Colors.green : Colors.orange,
-                      fontWeight: FontWeight.w600,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     isOnCampus
                         ? 'You can submit leave requests to exit campus'
                         : 'Use approved leave requests to re-enter campus',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ],
               ),
@@ -190,55 +228,103 @@ class _ExitScreenState extends State<ExitScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Overview',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(
-              child: _buildStatCard(
-                context,
-                Icons.event_note,
-                totalRequests.toString(),
-                'Total Requests',
-                Colors.blue,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.analytics_outlined,
+                color: Colors.blue,
+                size: 20,
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                Icons.pending,
-                pendingRequests.toString(),
-                'Pending',
-                Colors.orange,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                Icons.check_circle,
-                approvedRequests.toString(),
-                'Approved',
-                Colors.green,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                activeLeave ? Icons.directions_run : Icons.home,
-                activeLeave ? 'YES' : 'NO',
-                'Active Leave',
-                activeLeave ? Colors.green : Colors.grey,
+            Text(
+              'Overview',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[900],
+                letterSpacing: -0.5,
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Top row with Total and Active stats
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      context,
+                      Icons.description_outlined,
+                      totalRequests.toString(),
+                      'Total Requests',
+                      Colors.blue,
+                      isLarge: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      context,
+                      activeLeave ? Icons.logout : Icons.home_outlined,
+                      activeLeave ? 'YES' : 'NO',
+                      'Active Leave',
+                      activeLeave ? Colors.green : Colors.grey,
+                      isLarge: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Bottom row with Pending and Approved stats
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      context,
+                      Icons.schedule_outlined,
+                      pendingRequests.toString(),
+                      'Pending Approval',
+                      Colors.orange,
+                      isLarge: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      context,
+                      Icons.check_circle_outline,
+                      approvedRequests.toString(),
+                      'Approved Requests',
+                      Colors.green,
+                      isLarge: true,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -249,41 +335,51 @@ class _ExitScreenState extends State<ExitScreen> {
     IconData icon,
     String value,
     String label,
-    Color color,
-  ) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
+    Color color, {
+    bool isLarge = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isLarge ? 20 : 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.1), width: 1.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: EdgeInsets.all(isLarge ? 14 : 10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+            child: Icon(icon, color: color, size: isLarge ? 28 : 22),
+          ),
+          SizedBox(height: isLarge ? 16 : 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: isLarge ? 28 : 22,
+              fontWeight: FontWeight.w800,
+              color: color,
+              letterSpacing: -0.5,
             ),
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-              textAlign: TextAlign.center,
+          ),
+          SizedBox(height: isLarge ? 8 : 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isLarge ? 13 : 11,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
             ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
@@ -292,45 +388,75 @@ class _ExitScreenState extends State<ExitScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Quick Actions',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(
-              child: _buildActionCard(
-                context,
-                'Submit Leave\nRequest',
-                Icons.assignment_add,
-                Colors.blue,
-                () => _navigateToSubmitLeaveRequest(context),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: const Icon(Icons.flash_on, color: Colors.purple, size: 20),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionCard(
-                context,
-                'Exit\nHistory',
-                Icons.history,
-                Colors.orange,
-                () => _navigateToExitHistory(context),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionCard(
-                context,
-                'Emergency\nExit',
-                Icons.warning,
-                Colors.red,
-                () => _showEmergencyExitDialog(context, provider),
+            Text(
+              'Quick Actions',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[900],
+                letterSpacing: -0.5,
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildActionCard(
+                  context,
+                  'Submit\nLeave',
+                  Icons.add_circle_outline,
+                  Colors.blue,
+                  () => _navigateToSubmitLeaveRequest(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildActionCard(
+                  context,
+                  'Exit\nHistory',
+                  Icons.history,
+                  Colors.orange,
+                  () => _navigateToExitHistory(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildActionCard(
+                  context,
+                  'Emergency\nExit',
+                  Icons.warning_amber,
+                  Colors.red,
+                  () => _showEmergencyExitDialog(context, provider),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -345,39 +471,41 @@ class _ExitScreenState extends State<ExitScreen> {
   ) {
     return GestureDetector(
       onTap: onTap,
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-            ),
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.15), width: 1.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [color.withOpacity(0.08), color.withOpacity(0.12)],
                 ),
-                child: Icon(icon, color: color, size: 24),
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              child: Icon(icon, color: color, size: 26),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[800],
+                letterSpacing: -0.2,
+                height: 1.2,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -392,11 +520,31 @@ class _ExitScreenState extends State<ExitScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Recent Leave Requests',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.recent_actors_outlined,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Recent Requests',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[900],
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
             ),
             if (leaveRequests.isNotEmpty)
               TextButton(
@@ -405,31 +553,49 @@ class _ExitScreenState extends State<ExitScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         if (leaveRequests.isEmpty)
-          Card(
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(32),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.assignment_outlined,
-                    size: 48,
-                    color: Colors.grey[400],
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      Icons.assignment_outlined,
+                      size: 48,
+                      color: Colors.grey[400],
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Text(
                     'No leave requests yet',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Submit your first leave request to get started',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -463,45 +629,56 @@ class _ExitScreenState extends State<ExitScreen> {
         break;
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
         leading: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: statusColor.withOpacity(0.1),
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(statusIcon, color: statusColor, size: 20),
+          child: Icon(statusIcon, color: statusColor, size: 24),
         ),
         title: Text(
           request.reason,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
         ),
-        subtitle: Text(
-          '${DateFormat('MMM dd').format(request.startDate)} - ${DateFormat('MMM dd').format(request.endDate)}',
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            '${DateFormat('MMM dd').format(request.startDate)} - ${DateFormat('MMM dd').format(request.endDate)}',
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                request.status.value.toUpperCase(),
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            request.status.value.toUpperCase(),
+            style: TextStyle(
+              color: statusColor,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
             ),
-          ],
+          ),
         ),
         onTap: () => _navigateToLeaveRequestDetails(context, request),
       ),
@@ -527,20 +704,50 @@ class _ExitScreenState extends State<ExitScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Exit Authorization',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color:
+                    hasActiveLeave
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                hasActiveLeave ? Icons.verified_user : Icons.security,
+                color: hasActiveLeave ? Colors.green : Colors.grey[600],
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Exit Authorization',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[900],
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+        const SizedBox(height: 20),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             child:
                 hasActiveLeave
                     ? _buildActiveLeaveSection(context, approvedLeave)
@@ -555,17 +762,25 @@ class _ExitScreenState extends State<ExitScreen> {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.1),
-            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.withOpacity(0.1),
+                Colors.green.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: const Icon(Icons.verified_user, color: Colors.green, size: 32),
+          child: const Icon(Icons.verified_user, color: Colors.green, size: 40),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Text(
           'Exit Authorized',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          style: TextStyle(
+            fontSize: 24,
             color: Colors.green,
             fontWeight: FontWeight.bold,
           ),
@@ -573,24 +788,26 @@ class _ExitScreenState extends State<ExitScreen> {
         const SizedBox(height: 8),
         Text(
           'Valid until ${DateFormat('MMM dd, yyyy').format(leave.endDate)}',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () => _navigateToExitQrScreen(context, leave),
-            icon: const Icon(Icons.qr_code),
-            label: const Text('Generate Exit QR Code'),
+            icon: const Icon(Icons.qr_code, size: 20),
+            label: const Text(
+              'Generate Exit QR Code',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
+              elevation: 0,
             ),
           ),
         ),
@@ -602,41 +819,53 @@ class _ExitScreenState extends State<ExitScreen> {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.grey.withOpacity(0.1),
-            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.grey.withOpacity(0.1),
+                Colors.grey.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
           ),
-          child: Icon(Icons.lock_outline, color: Colors.grey[400], size: 32),
+          child: Icon(Icons.lock_outline, color: Colors.grey[500], size: 40),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Text(
           'No Active Exit Authorization',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Colors.grey[600],
+          style: TextStyle(
+            fontSize: 20,
+            color: Colors.grey[700],
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Submit and get approval for a leave request to enable campus exit',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: Colors.grey[500]),
+          style: TextStyle(fontSize: 14, color: Colors.grey[500]),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
+          child: ElevatedButton.icon(
             onPressed: () => _navigateToSubmitLeaveRequest(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Submit Leave Request'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text(
+              'Submit Leave Request',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
+              elevation: 0,
             ),
           ),
         ),
@@ -694,34 +923,76 @@ class _ExitScreenState extends State<ExitScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.warning, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Emergency Exit'),
-            ],
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          content: const Text(
-            'Emergency exit should only be used in urgent situations. This will be logged and may require explanation. Continue?',
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.warning, color: Colors.red, size: 32),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Emergency Exit',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Emergency exit should only be used in urgent situations. This will be logged and may require explanation. Continue?',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _showComingSoonDialog('Emergency Exit QR');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Proceed',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showComingSoonDialog('Emergency Exit QR');
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Proceed'),
-            ),
-          ],
         );
       },
     );
@@ -731,17 +1002,64 @@ class _ExitScreenState extends State<ExitScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(feature),
-          content: Text(
-            '$feature functionality will be implemented in the next phase.',
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.info_outline,
+                    color: Colors.blue,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  feature,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '$feature functionality will be implemented in the next phase.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'OK',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );

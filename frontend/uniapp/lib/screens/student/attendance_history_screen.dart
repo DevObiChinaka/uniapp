@@ -4,6 +4,48 @@ import '../app_provider.dart';
 import '../../models/models.dart';
 import 'package:intl/intl.dart';
 
+// Cache for course codes to avoid repeated API calls
+Map<String, String> _courseCache = {};
+
+Future<String> _getCourseCodeForSession(
+  BuildContext context,
+  String sessionId,
+) async {
+  // Check cache first
+  if (_courseCache.containsKey(sessionId)) {
+    return _courseCache[sessionId]!;
+  }
+
+  try {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+
+    // Find the session in the provider's sessions list
+    final session = provider.sessions.firstWhere(
+      (s) => s.id == sessionId,
+      orElse: () => throw Exception('Session not found'),
+    );
+
+    if (session.courseId == null || session.courseId!.isEmpty) {
+      _courseCache[sessionId] = 'Unknown Course';
+      return 'Unknown Course';
+    }
+
+    // Fetch course details
+    final course = await provider.coreServices.getCourse(session.courseId!);
+    final courseCode = course?.code ?? 'Unknown Course';
+
+    // Cache the result
+    _courseCache[sessionId] = courseCode;
+    return courseCode;
+  } catch (e) {
+    debugPrint(
+      '[AttendanceHistory] Error fetching course for session $sessionId: $e',
+    );
+    _courseCache[sessionId] = 'Unknown Course';
+    return 'Unknown Course';
+  }
+}
+
 class AttendanceHistoryScreen extends StatefulWidget {
   const AttendanceHistoryScreen({super.key});
 
@@ -192,11 +234,17 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Session ${record.sessionId}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                FutureBuilder<String>(
+                  future: _getCourseCodeForSession(context, record.sessionId),
+                  builder: (context, snapshot) {
+                    final courseCode = snapshot.data ?? 'Loading...';
+                    return Text(
+                      courseCode,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    );
+                  },
                 ),
                 Text(
                   'Period ${record.period} • ${record.method}',
